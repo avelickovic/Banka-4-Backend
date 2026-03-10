@@ -1,0 +1,56 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Output binaries (per-service)
+services/*/bin/
+services/*/out/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+
+# Debug
+__debug_bin*
+
+# Air live reload
+tmp/
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
