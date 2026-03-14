@@ -20,7 +20,7 @@ import (
 
 // @title User Service API
 // @version 1.0
-// @description API for managing employees, authentication, and permissions.
+// @description API for managing employees, clients, authentication, and permissions.
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
@@ -39,21 +39,36 @@ func main() {
 				return permission.NewDBPermissionProvider(database)
 			},
 
+			repository.NewIdentityRepository,
 			repository.NewEmployeeRepository,
+			repository.NewClientRepository,
 			repository.NewActivationTokenRepository,
 			repository.NewResetTokenRepository,
-			repository.NewPositionRepository,
 			repository.NewRefreshTokenRepository,
+			repository.NewPositionRepository,
+			service.NewAuthService,
 			service.NewEmployeeService,
+			service.NewClientService,
 			service.NewEmailService,
+			handler.NewAuthHandler,
 			handler.NewEmployeeHandler,
+			handler.NewClientHandler,
 			handler.NewHealthHandler,
 		),
 		fx.Invoke(func(cfg *config.Configuration) error {
 			return logging.Init(cfg.Env)
 		}),
 		fx.Invoke(func(db *gorm.DB) error {
-			if err := db.AutoMigrate(&model.Employee{}, &model.Position{}, &model.ActivationToken{}, &model.ResetToken{}, &model.EmployeePermission{}, &model.RefreshToken{}); err != nil {
+			if err := db.AutoMigrate(
+				&model.Identity{},
+				&model.Employee{},
+				&model.Client{},
+				&model.Position{},
+				&model.ActivationToken{},
+				&model.ResetToken{},
+				&model.RefreshToken{},
+				&model.EmployeePermission{},
+			); err != nil {
 				return err
 			}
 			return seed.Run(db)

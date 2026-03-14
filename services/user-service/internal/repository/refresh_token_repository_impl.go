@@ -32,6 +32,6 @@ func (r *refreshTokenRepository) FindByToken(ctx context.Context, token string) 
 	return &t, nil
 }
 
-func (r *refreshTokenRepository) DeleteByEmployeeID(ctx context.Context, employeeID uint) error {
-	return r.db.WithContext(ctx).Where("employee_id = ?", employeeID).Delete(&model.RefreshToken{}).Error
+func (r *refreshTokenRepository) DeleteByIdentityID(ctx context.Context, identityID uint) error {
+	return r.db.WithContext(ctx).Where("identity_id = ?", identityID).Delete(&model.RefreshToken{}).Error
 }

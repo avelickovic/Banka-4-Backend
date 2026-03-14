@@ -8,5 +8,5 @@ import (
 type ResetTokenRepository interface {
 	Create(ctx context.Context, token *model.ResetToken) error
 	FindByToken(ctx context.Context, token string) (*model.ResetToken, error)
-	DeleteByEmployeeID(ctx context.Context, employeeID uint) error
+	DeleteByIdentityID(ctx context.Context, identityID uint) error
 }

@@ -7,19 +7,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthContext holds the authenticated user's identity and permissions.
+// AuthContext holds the authenticated identity and permissions.
 // Populated by Middleware, then available to RequirePermission and
 // all downstream handlers via GetAuth / GetAuthFromContext.
 type AuthContext struct {
-	UserID      uint
-	Permissions []permission.Permission
+	IdentityID   uint
+	IdentityType IdentityType
+	ClientID     *uint
+	EmployeeID   *uint
+	Permissions  []permission.Permission
 }
 
 type authKeyType struct{}
 
 var authKey = authKeyType{}
 
-// SetAuth stores the authenticated user in both the Gin context and the
+// SetAuth stores the authenticated identity in both the Gin context and the
 // request's stdlib context. The Gin context is used by middleware (GetAuth),
 // and the stdlib context is used by service-layer code (GetAuthFromContext).
 func SetAuth(c *gin.Context, auth *AuthContext) {
@@ -35,7 +38,7 @@ func SetAuthOnContext(ctx context.Context, ac *AuthContext) context.Context {
 	return context.WithValue(ctx, authKey, ac)
 }
 
-// GetAuth retrieves the authenticated user from the Gin context.
+// GetAuth retrieves the authenticated identity from the Gin context.
 func GetAuth(c *gin.Context) *AuthContext {
 	val, exists := c.Get(authKey)
 	if !exists {
@@ -50,7 +53,7 @@ func GetAuth(c *gin.Context) *AuthContext {
 	return auth
 }
 
-// GetAuthFromContext retrieves the authenticated user from a stdlib context.
+// GetAuthFromContext retrieves the authenticated identity from a stdlib context.
 func GetAuthFromContext(ctx context.Context) *AuthContext {
 	val := ctx.Value(authKey)
 	if val == nil {

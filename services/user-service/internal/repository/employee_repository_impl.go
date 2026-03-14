@@ -20,33 +20,37 @@ func (r *employeeRepository) Create(ctx context.Context, employee *model.Employe
 	return r.db.WithContext(ctx).Create(employee).Error
 }
 
-func (r *employeeRepository) FindByEmail(ctx context.Context, email string) (*model.Employee, error) {
-	var employee model.Employee
-
-	result := r.db.
-		WithContext(ctx).
+func (r *employeeRepository) FindByID(ctx context.Context, id uint) (*model.Employee, error) {
+	var e model.Employee
+	result := r.db.WithContext(ctx).
 		Preload("Permissions").
-		Where("email = ?", email).
-		First(&employee)
+		Preload("Identity").
+		First(&e, id)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-
-	return &employee, result.Error
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &e, nil
 }
 
-func (r *employeeRepository) FindByUserName(ctx context.Context, userName string) (*model.Employee, error) {
-	var employee model.Employee
-	result := r.db.
-		WithContext(ctx).
+func (r *employeeRepository) FindByIdentityID(ctx context.Context, identityID uint) (*model.Employee, error) {
+	var e model.Employee
+	result := r.db.WithContext(ctx).
 		Preload("Permissions").
-		Where("username = ?", userName).
-		First(&employee)
+		Preload("Identity").
+		Where("identity_id = ?", identityID).
+		First(&e)
+
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-	return &employee, result.Error
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &e, nil
 }
 
 func (r *employeeRepository) Update(ctx context.Context, employee *model.Employee) error {
@@ -69,20 +73,6 @@ func (r *employeeRepository) Update(ctx context.Context, employee *model.Employe
 	})
 }
 
-func (r *employeeRepository) FindByID(ctx context.Context, id uint) (*model.Employee, error) {
-	var e model.Employee
-	result := r.db.WithContext(ctx).Preload("Permissions").First(&e, id)
-
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	return &e, nil
-}
-
 func (r *employeeRepository) GetAll(ctx context.Context, email, firstName, lastName, position string, page, pageSize int) ([]model.Employee, int64, error) {
 	var employees []model.Employee
 	var total int64
@@ -91,30 +81,29 @@ func (r *employeeRepository) GetAll(ctx context.Context, email, firstName, lastN
 		Model(&model.Employee{}).
 		Preload("Position").
 		Preload("Permissions").
-		Joins("LEFT JOIN positions ON positions.position_id = employees.position_id")
+		Preload("Identity").
+		Joins("LEFT JOIN positions ON positions.position_id = employees.position_id").
+		Joins("LEFT JOIN identities ON identities.id = employees.identity_id")
 
-	// Filter
 	if email != "" {
-		query = query.Where("email ILIKE ?", "%"+email+"%")
+		query = query.Where("identities.email ILIKE ?", "%"+email+"%")
 	}
 	if firstName != "" {
-		query = query.Where("first_name ILIKE ?", "%"+firstName+"%")
+		query = query.Where("employees.first_name ILIKE ?", "%"+firstName+"%")
 	}
 	if lastName != "" {
-		query = query.Where("last_name ILIKE ?", "%"+lastName+"%")
+		query = query.Where("employees.last_name ILIKE ?", "%"+lastName+"%")
 	}
 	if position != "" {
 		query = query.Where("positions.title ILIKE ?", "%"+position+"%")
 	}
 
-	// Get total
 	if err := query.Model(&model.Employee{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Pagination
 	offset := (page - 1) * pageSize
-	if err := query.Offset(offset).Limit(pageSize).Order("employee_id DESC").Find(&employees).Error; err != nil {
+	if err := query.Offset(offset).Limit(pageSize).Order("employees.employee_id DESC").Find(&employees).Error; err != nil {
 		return nil, 0, err
 	}
 

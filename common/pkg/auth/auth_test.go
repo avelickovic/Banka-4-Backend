@@ -30,7 +30,7 @@ type fakePermissionProvider struct {
 	err   error
 }
 
-func (f *fakePermissionProvider) GetPermissions(_ context.Context, _ uint) ([]permission.Permission, error) {
+func (f *fakePermissionProvider) GetPermissions(_ context.Context, _ *jwt.Claims) ([]permission.Permission, error) {
 	return f.perms, f.err
 }
 
@@ -45,7 +45,11 @@ func middlewareRouter(verifier auth.TokenVerifier, provider auth.PermissionProvi
 	router.Use(auth.Middleware(verifier, provider))
 	router.GET("/test", func(c *gin.Context) {
 		ac := auth.GetAuth(c)
-		c.JSON(http.StatusOK, gin.H{"user_id": ac.UserID})
+		c.JSON(http.StatusOK, gin.H{
+			"identity_id": ac.IdentityID,
+			"client_id":   ac.ClientID,
+			"employee_id": ac.EmployeeID,
+		})
 	})
 	return router
 }
@@ -64,7 +68,7 @@ func TestMiddleware_ValidToken(t *testing.T) {
 	t.Parallel()
 
 	router := middlewareRouter(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 42}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 42, IdentityType: "employee", EmployeeID: uintPtr(8)}},
 		&fakePermissionProvider{perms: []permission.Permission{permission.EmployeeView}},
 	)
 
@@ -101,7 +105,7 @@ func TestMiddleware_MalformedHeader(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			router := middlewareRouter(
-				&fakeTokenVerifier{claims: &jwt.Claims{UserID: 1}},
+				&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 1, IdentityType: "employee"}},
 				&fakePermissionProvider{perms: []permission.Permission{}},
 			)
 
@@ -127,7 +131,7 @@ func TestMiddleware_PermissionProviderError(t *testing.T) {
 	t.Parallel()
 
 	router := middlewareRouter(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 1}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 1, IdentityType: "employee"}},
 		&fakePermissionProvider{err: fmt.Errorf("db down")},
 	)
 
@@ -141,7 +145,7 @@ func TestMiddleware_SetsAuthContext(t *testing.T) {
 	var captured *auth.AuthContext
 	router := gin.New()
 	router.Use(auth.Middleware(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 7}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 7, IdentityType: "employee", EmployeeID: uintPtr(3)}},
 		&fakePermissionProvider{perms: []permission.Permission{permission.EmployeeView, permission.EmployeeCreate}},
 	))
 	router.GET("/test", func(c *gin.Context) {
@@ -152,7 +156,11 @@ func TestMiddleware_SetsAuthContext(t *testing.T) {
 	doGet(router, "Bearer valid-token")
 
 	require.NotNil(t, captured)
-	require.Equal(t, uint(7), captured.UserID)
+	require.Equal(t, uint(7), captured.IdentityID)
+	require.Equal(t, auth.IdentityEmployee, captured.IdentityType)
+	require.NotNil(t, captured.EmployeeID)
+	require.Equal(t, uint(3), *captured.EmployeeID)
+	require.Nil(t, captured.ClientID)
 	require.ElementsMatch(t, []permission.Permission{permission.EmployeeView, permission.EmployeeCreate}, captured.Permissions)
 }
 
@@ -162,7 +170,7 @@ func TestMiddleware_SetsStdlibContext(t *testing.T) {
 	var captured *auth.AuthContext
 	router := gin.New()
 	router.Use(auth.Middleware(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 7}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 7, IdentityType: "client", ClientID: uintPtr(22)}},
 		&fakePermissionProvider{perms: []permission.Permission{permission.EmployeeView}},
 	))
 	router.GET("/test", func(c *gin.Context) {
@@ -173,7 +181,11 @@ func TestMiddleware_SetsStdlibContext(t *testing.T) {
 	doGet(router, "Bearer valid-token")
 
 	require.NotNil(t, captured)
-	require.Equal(t, uint(7), captured.UserID)
+	require.Equal(t, uint(7), captured.IdentityID)
+	require.Equal(t, auth.IdentityClient, captured.IdentityType)
+	require.NotNil(t, captured.ClientID)
+	require.Equal(t, uint(22), *captured.ClientID)
+	require.Nil(t, captured.EmployeeID)
 }
 
 func requirePermissionRouter(verifier auth.TokenVerifier, provider auth.PermissionProvider, required ...permission.Permission) *gin.Engine {
@@ -190,7 +202,7 @@ func TestRequirePermission_HasPermission(t *testing.T) {
 	t.Parallel()
 
 	router := requirePermissionRouter(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 1}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 1, IdentityType: "employee"}},
 		&fakePermissionProvider{perms: []permission.Permission{permission.EmployeeView, permission.EmployeeCreate}},
 		permission.EmployeeView,
 	)
@@ -203,7 +215,7 @@ func TestRequirePermission_HasMultipleRequired(t *testing.T) {
 	t.Parallel()
 
 	router := requirePermissionRouter(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 1}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 1, IdentityType: "employee"}},
 		&fakePermissionProvider{perms: []permission.Permission{permission.EmployeeView, permission.EmployeeCreate, permission.EmployeeUpdate}},
 		permission.EmployeeView, permission.EmployeeCreate,
 	)
@@ -216,7 +228,7 @@ func TestRequirePermission_MissingPermission(t *testing.T) {
 	t.Parallel()
 
 	router := requirePermissionRouter(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 1}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 1, IdentityType: "employee"}},
 		&fakePermissionProvider{perms: []permission.Permission{permission.EmployeeView}},
 		permission.EmployeeDelete,
 	)
@@ -242,11 +254,15 @@ func TestRequirePermission_EmptyUserPermissions(t *testing.T) {
 	t.Parallel()
 
 	router := requirePermissionRouter(
-		&fakeTokenVerifier{claims: &jwt.Claims{UserID: 1}},
+		&fakeTokenVerifier{claims: &jwt.Claims{IdentityID: 1, IdentityType: "employee"}},
 		&fakePermissionProvider{perms: []permission.Permission{}},
 		permission.EmployeeView,
 	)
 
 	w := doGet(router, "Bearer valid-token")
 	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func uintPtr(v uint) *uint {
+	return &v
 }

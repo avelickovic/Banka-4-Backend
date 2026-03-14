@@ -8,7 +8,10 @@ import (
 )
 
 type Claims struct {
-	UserID uint `json:"user_id"`
+	IdentityID   uint   `json:"identity_id"`
+	IdentityType string `json:"identity_type"`
+	ClientID     *uint  `json:"client_id,omitempty"`
+	EmployeeID   *uint  `json:"employee_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -25,18 +28,16 @@ func NewJWTVerifier(secret string) *JWTVerifier {
 	}
 }
 
-func GenerateToken(userID uint, secret string, expiryMinutes int) (string, error) {
+func GenerateToken(claims *Claims, secret string, expiryMinutes int) (string, error) {
 	expirationTime := time.Now().Add(time.Duration(expiryMinutes) * time.Minute)
 
-	claims := &Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
+	tokenClaims := *claims
+	tokenClaims.RegisteredClaims = jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(expirationTime),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &tokenClaims)
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
 		return "", err

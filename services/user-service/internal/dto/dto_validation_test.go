@@ -195,26 +195,26 @@ func TestActivateEmployeeRequest_Validation(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     dto.ActivateEmployeeRequest
+		req     dto.ActivateAccountRequest
 		wantErr bool
 	}{
 		{
 			name: "valid",
-			req:  dto.ActivateEmployeeRequest{Token: "abc123", Password: "ValidPass12"},
+			req:  dto.ActivateAccountRequest{Token: "abc123", Password: "ValidPass12"},
 		},
 		{
 			name:    "missing token",
-			req:     dto.ActivateEmployeeRequest{Password: "ValidPass12"},
+			req:     dto.ActivateAccountRequest{Password: "ValidPass12"},
 			wantErr: true,
 		},
 		{
 			name:    "missing password",
-			req:     dto.ActivateEmployeeRequest{Token: "abc123"},
+			req:     dto.ActivateAccountRequest{Token: "abc123"},
 			wantErr: true,
 		},
 		{
 			name:    "weak password",
-			req:     dto.ActivateEmployeeRequest{Token: "abc123", Password: "weak"},
+			req:     dto.ActivateAccountRequest{Token: "abc123", Password: "weak"},
 			wantErr: true,
 		},
 	}

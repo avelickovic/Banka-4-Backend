@@ -9,10 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Middleware validates the Bearer token and loads the user's permissions
+// Middleware validates the Bearer token and loads the identity's permissions
 // into the request context. After this middleware runs, handlers can call
-// GetAuth(c) to access UserID and Permissions without any extra DB or
-// gRPC calls.
+// GetAuth(c) to access IdentityID, IdentityType, ClientID, EmployeeID,
+// and Permissions without any extra DB or gRPC calls.
 func Middleware(verifier TokenVerifier, provider PermissionProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
@@ -36,7 +36,7 @@ func Middleware(verifier TokenVerifier, provider PermissionProvider) gin.Handler
 			return
 		}
 
-		permissions, err := provider.GetPermissions(c.Request.Context(), claims.UserID)
+		permissions, err := provider.GetPermissions(c.Request.Context(), claims)
 		if err != nil {
 			c.Error(errors.InternalErr(err))
 			c.Abort()
@@ -44,17 +44,20 @@ func Middleware(verifier TokenVerifier, provider PermissionProvider) gin.Handler
 		}
 
 		SetAuth(c, &AuthContext{
-			UserID:      claims.UserID,
-			Permissions: permissions,
+			IdentityID:   claims.IdentityID,
+			IdentityType: IdentityType(claims.IdentityType),
+			ClientID:     claims.ClientID,
+			EmployeeID:   claims.EmployeeID,
+			Permissions:  permissions,
 		})
 
 		c.Next()
 	}
 }
 
-// RequirePermission checks that the authenticated user holds all the
+// RequirePermission checks that the authenticated identity holds all the
 // given permissions. Must run after Middleware. Checks against the
-// permissions already loaded into AuthContext
+// permissions already loaded into AuthContext.
 func RequirePermission(permissions ...permission.Permission) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		context := GetAuth(c)
@@ -73,6 +76,29 @@ func RequirePermission(permissions ...permission.Permission) gin.HandlerFunc {
 		}
 
 		c.Next()
+	}
+}
+
+// RequireIdentityType checks that the authenticated identity is one of the
+// allowed types. Must run after Middleware.
+func RequireIdentityType(allowed ...IdentityType) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ac := GetAuth(c)
+		if ac == nil {
+			c.Error(errors.UnauthorizedErr("not authenticated"))
+			c.Abort()
+			return
+		}
+
+		for _, t := range allowed {
+			if ac.IdentityType == t {
+				c.Next()
+				return
+			}
+		}
+
+		c.Error(errors.ForbiddenErr("access denied for this identity type"))
+		c.Abort()
 	}
 }
 

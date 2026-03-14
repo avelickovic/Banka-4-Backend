@@ -42,13 +42,13 @@ func ToEmployeeResponse(e *model.Employee) *EmployeeResponse {
 		LastName:    e.LastName,
 		Gender:      e.Gender,
 		DateOfBirth: e.DateOfBirth,
-		Email:       e.Email,
+		Email:       e.Identity.Email,
 		PhoneNumber: e.PhoneNumber,
 		Address:     e.Address,
-		Username:    e.Username,
+		Username:    e.Identity.Username,
 		Department:  e.Department,
 		PositionID:  e.PositionID,
-		Active:      e.Active,
+		Active:      e.Identity.Active,
 		Permissions: permissions,
 	}
 }

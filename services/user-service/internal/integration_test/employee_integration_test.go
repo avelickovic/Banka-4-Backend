@@ -24,7 +24,7 @@ func TestLogin(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupTestRouter(t, db)
 	position := seedPosition(t, db)
-	employee := seedEmployee(t, db, position.PositionID)
+	identity, employee := seedEmployee(t, db, position.PositionID)
 
 	testCases := []struct {
 		name       string
@@ -36,7 +36,7 @@ func TestLogin(t *testing.T) {
 		{
 			name: "correct credentials",
 			body: map[string]any{
-				"email":    employee.Email,
+				"email":    identity.Email,
 				"password": "Password12",
 			},
 			wantStatus: http.StatusOK,
@@ -50,7 +50,7 @@ func TestLogin(t *testing.T) {
 		{
 			name: "wrong password",
 			body: map[string]any{
-				"email":    employee.Email,
+				"email":    identity.Email,
 				"password": "WrongPassword12",
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -75,9 +75,9 @@ func TestLogin(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var recorder *httptest.ResponseRecorder
 			if tc.rawBody != "" {
-				recorder = performRawJSONRequest(t, router, http.MethodPost, "/api/employees/login", tc.rawBody, "")
+				recorder = performRawJSONRequest(t, router, http.MethodPost, "/api/auth/login", tc.rawBody, "")
 			} else {
-				recorder = performRequest(t, router, http.MethodPost, "/api/employees/login", tc.body, "")
+				recorder = performRequest(t, router, http.MethodPost, "/api/auth/login", tc.body, "")
 			}
 
 			requireStatus(t, recorder, tc.wantStatus)
@@ -94,8 +94,8 @@ func TestRegister(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupTestRouter(t, db)
 	position := seedPosition(t, db)
-	admin := seedEmployeeWithPermissions(t, db, position.PositionID, commonpermission.EmployeeCreate)
-	noPermissionUser := seedEmployee(t, db, position.PositionID)
+	adminIdentity, _ := seedEmployeeWithPermissions(t, db, position.PositionID, commonpermission.EmployeeCreate)
+	noPermIdentity, _ := seedEmployee(t, db, position.PositionID)
 
 	validBody := map[string]any{
 		"first_name":    "Ana",
@@ -122,7 +122,7 @@ func TestRegister(t *testing.T) {
 		{
 			name:       "valid data with permission",
 			body:       validBody,
-			auth:       authHeader(t, admin.EmployeeID),
+			auth:       authHeader(t, adminIdentity.ID),
 			wantStatus: http.StatusCreated,
 			wantEmail:  validBody["email"].(string),
 		},
@@ -141,7 +141,7 @@ func TestRegister(t *testing.T) {
 				"position_id":   position.PositionID,
 				"active":        true,
 			},
-			auth:       authHeader(t, admin.EmployeeID),
+			auth:       authHeader(t, adminIdentity.ID),
 			wantStatus: http.StatusConflict,
 		},
 		{
@@ -164,7 +164,7 @@ func TestRegister(t *testing.T) {
 				"position_id":   position.PositionID,
 				"active":        true,
 			},
-			auth:       authHeader(t, noPermissionUser.EmployeeID),
+			auth:       authHeader(t, noPermIdentity.ID),
 			wantStatus: http.StatusForbidden,
 		},
 	}
@@ -197,10 +197,10 @@ func TestListEmployees(t *testing.T) {
 	manager.Title = "Manager"
 	require.NoError(t, db.Save(manager).Error)
 
-	viewer := seedEmployeeWithPermissions(t, db, developer.PositionID, commonpermission.EmployeeView)
-	devOne := seedEmployee(t, db, developer.PositionID)
-	devTwo := seedEmployee(t, db, developer.PositionID)
-	managerEmployee := seedEmployee(t, db, manager.PositionID)
+	viewerIdentity, _ := seedEmployeeWithPermissions(t, db, developer.PositionID, commonpermission.EmployeeView)
+	devOneIdentity, _ := seedEmployee(t, db, developer.PositionID)
+	devTwoIdentity, _ := seedEmployee(t, db, developer.PositionID)
+	managerIdentity, _ := seedEmployee(t, db, manager.PositionID)
 
 	testCases := []struct {
 		name         string
@@ -214,37 +214,37 @@ func TestListEmployees(t *testing.T) {
 		{
 			name:       "list all employees",
 			path:       "/api/employees?page=1&page_size=10",
-			auth:       authHeader(t, viewer.EmployeeID),
+			auth:       authHeader(t, viewerIdentity.ID),
 			wantStatus: http.StatusOK,
 			wantTotal:  4,
 			wantCount:  4,
 		},
 		{
 			name:       "filter by email",
-			path:       "/api/employees?email=" + url.QueryEscape(devOne.Email) + "&page=1&page_size=10",
-			auth:       authHeader(t, viewer.EmployeeID),
+			path:       "/api/employees?email=" + url.QueryEscape(devOneIdentity.Email) + "&page=1&page_size=10",
+			auth:       authHeader(t, viewerIdentity.ID),
 			wantStatus: http.StatusOK,
 			wantTotal:  1,
 			wantCount:  1,
 			assertResult: func(t *testing.T, response listEmployeesResponse) {
 				t.Helper()
-				assert.Equal(t, devOne.Email, response.Data[0].Email)
+				assert.Equal(t, devOneIdentity.Email, response.Data[0].Email)
 			},
 		},
 		{
 			name:       "filter by position title",
 			path:       "/api/employees?position=Developer&page=1&page_size=10",
-			auth:       authHeader(t, viewer.EmployeeID),
+			auth:       authHeader(t, viewerIdentity.ID),
 			wantStatus: http.StatusOK,
 			wantTotal:  3,
 			wantCount:  3,
 			assertResult: func(t *testing.T, response listEmployeesResponse) {
 				t.Helper()
 				emails := []string{response.Data[0].Email, response.Data[1].Email, response.Data[2].Email}
-				assert.Contains(t, emails, viewer.Email)
-				assert.Contains(t, emails, devOne.Email)
-				assert.Contains(t, emails, devTwo.Email)
-				assert.NotContains(t, emails, managerEmployee.Email)
+				assert.Contains(t, emails, viewerIdentity.Email)
+				assert.Contains(t, emails, devOneIdentity.Email)
+				assert.Contains(t, emails, devTwoIdentity.Email)
+				assert.NotContains(t, emails, managerIdentity.Email)
 			},
 		},
 		{
@@ -278,9 +278,9 @@ func TestGetEmployee(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupTestRouter(t, db)
 	position := seedPosition(t, db)
-	viewer := seedEmployeeWithPermissions(t, db, position.PositionID, commonpermission.EmployeeView)
-	employee := seedEmployee(t, db, position.PositionID)
-	auth := authHeader(t, viewer.EmployeeID)
+	viewerIdentity, _ := seedEmployeeWithPermissions(t, db, position.PositionID, commonpermission.EmployeeView)
+	empIdentity, employee := seedEmployee(t, db, position.PositionID)
+	authHdr := authHeader(t, viewerIdentity.ID)
 
 	testCases := []struct {
 		name       string
@@ -295,12 +295,12 @@ func TestGetEmployee(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			recorder := performRequest(t, router, http.MethodGet, tc.path, nil, auth)
+			recorder := performRequest(t, router, http.MethodGet, tc.path, nil, authHdr)
 			requireStatus(t, recorder, tc.wantStatus)
 
 			if tc.wantStatus == http.StatusOK {
 				response := decodeResponse[employeeResponse](t, recorder)
-				assert.Equal(t, employee.Email, response.Email)
+				assert.Equal(t, empIdentity.Email, response.Email)
 				assert.Equal(t, employee.EmployeeID, response.ID)
 			}
 		})
@@ -314,10 +314,10 @@ func TestUpdateEmployee(t *testing.T) {
 	router := setupTestRouter(t, db)
 	position := seedPosition(t, db)
 	otherPosition := seedPosition(t, db)
-	updater := seedEmployeeWithPermissions(t, db, position.PositionID, commonpermission.EmployeeUpdate)
-	employee := seedEmployee(t, db, position.PositionID)
-	otherEmployee := seedEmployee(t, db, position.PositionID)
-	auth := authHeader(t, updater.EmployeeID)
+	updaterIdentity, _ := seedEmployeeWithPermissions(t, db, position.PositionID, commonpermission.EmployeeUpdate)
+	_, employee := seedEmployee(t, db, position.PositionID)
+	otherIdentity, _ := seedEmployee(t, db, position.PositionID)
+	authHdr := authHeader(t, updaterIdentity.ID)
 
 	newDepartment := "Operations"
 	newPositionID := otherPosition.PositionID
@@ -338,7 +338,7 @@ func TestUpdateEmployee(t *testing.T) {
 		{
 			name: "duplicate email",
 			body: map[string]any{
-				"email": otherEmployee.Email,
+				"email": otherIdentity.Email,
 			},
 			wantStatus: http.StatusConflict,
 		},
@@ -354,7 +354,7 @@ func TestUpdateEmployee(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			recorder := performRequest(t, router, http.MethodPatch, "/api/employees/"+itoa(employee.EmployeeID), tc.body, auth)
+			recorder := performRequest(t, router, http.MethodPatch, "/api/employees/"+itoa(employee.EmployeeID), tc.body, authHdr)
 			requireStatus(t, recorder, tc.wantStatus)
 
 			if tc.wantStatus == http.StatusOK {
@@ -372,18 +372,18 @@ func TestActivateAccount(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupTestRouter(t, db)
 	position := seedPosition(t, db)
-	employee := seedEmployee(t, db, position.PositionID)
-	employee.Active = false
-	employee.Password = ""
-	require.NoError(t, db.Save(employee).Error)
+	identity, _ := seedEmployee(t, db, position.PositionID)
+	identity.Active = false
+	identity.PasswordHash = ""
+	require.NoError(t, db.Save(identity).Error)
 
 	validToken := &model.ActivationToken{
-		EmployeeID: employee.EmployeeID,
+		IdentityID: identity.ID,
 		Token:      uniqueValue(t, "activation-token"),
 		ExpiresAt:  time.Now().Add(30 * time.Minute),
 	}
 	expiredToken := &model.ActivationToken{
-		EmployeeID: employee.EmployeeID,
+		IdentityID: identity.ID,
 		Token:      uniqueValue(t, "activation-token"),
 		ExpiresAt:  time.Now().Add(-30 * time.Minute),
 	}
@@ -424,14 +424,14 @@ func TestActivateAccount(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			recorder := performRequest(t, router, http.MethodPost, "/api/employees/activate", tc.body, "")
+			recorder := performRequest(t, router, http.MethodPost, "/api/auth/activate", tc.body, "")
 			requireStatus(t, recorder, tc.wantStatus)
 		})
 	}
 
-	refreshedEmployee := &model.Employee{}
-	require.NoError(t, db.First(refreshedEmployee, employee.EmployeeID).Error)
-	assert.NotEmpty(t, refreshedEmployee.Password)
+	refreshedIdentity := &model.Identity{}
+	require.NoError(t, db.First(refreshedIdentity, identity.ID).Error)
+	assert.NotEmpty(t, refreshedIdentity.PasswordHash)
 }
 
 func TestPasswordResetFlow(t *testing.T) {
@@ -440,24 +440,24 @@ func TestPasswordResetFlow(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupTestRouter(t, db)
 	position := seedPosition(t, db)
-	employee := seedEmployee(t, db, position.PositionID)
+	identity, _ := seedEmployee(t, db, position.PositionID)
 
-	forgotPassword := performRequest(t, router, http.MethodPost, "/api/employees/forgot-password", map[string]any{
-		"email": employee.Email,
+	forgotPassword := performRequest(t, router, http.MethodPost, "/api/auth/forgot-password", map[string]any{
+		"email": identity.Email,
 	}, "")
 	requireStatus(t, forgotPassword, http.StatusOK)
 
 	var resetToken model.ResetToken
-	require.NoError(t, db.WithContext(context.Background()).Where("employee_id = ?", employee.EmployeeID).First(&resetToken).Error)
+	require.NoError(t, db.WithContext(context.Background()).Where("identity_id = ?", identity.ID).First(&resetToken).Error)
 
-	resetPassword := performRequest(t, router, http.MethodPost, "/api/employees/reset-password", map[string]any{
+	resetPassword := performRequest(t, router, http.MethodPost, "/api/auth/reset-password", map[string]any{
 		"token":        resetToken.Token,
 		"new_password": "NewPassword12",
 	}, "")
 	requireStatus(t, resetPassword, http.StatusOK)
 
-	login := performRequest(t, router, http.MethodPost, "/api/employees/login", map[string]any{
-		"email":    employee.Email,
+	login := performRequest(t, router, http.MethodPost, "/api/auth/login", map[string]any{
+		"email":    identity.Email,
 		"password": "NewPassword12",
 	}, "")
 	requireStatus(t, login, http.StatusOK)
@@ -469,11 +469,11 @@ func TestRefreshToken(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupTestRouter(t, db)
 	position := seedPosition(t, db)
-	employee := seedEmployee(t, db, position.PositionID)
+	identity, _ := seedEmployee(t, db, position.PositionID)
 
-	login := loginEmployee(t, router, employee.Email, "Password12")
+	login := loginEmployee(t, router, identity.Email, "Password12")
 
-	validRefresh := performRequest(t, router, http.MethodPost, "/api/employees/refresh", map[string]any{
+	validRefresh := performRequest(t, router, http.MethodPost, "/api/auth/refresh", map[string]any{
 		"refresh_token": login.RefreshToken,
 	}, "")
 	requireStatus(t, validRefresh, http.StatusOK)
@@ -483,7 +483,7 @@ func TestRefreshToken(t *testing.T) {
 	assert.NotEmpty(t, refreshResponse.RefreshToken)
 	assert.NotEqual(t, login.RefreshToken, refreshResponse.RefreshToken)
 
-	invalidRefresh := performRequest(t, router, http.MethodPost, "/api/employees/refresh", map[string]any{
+	invalidRefresh := performRequest(t, router, http.MethodPost, "/api/auth/refresh", map[string]any{
 		"refresh_token": "invalid-token",
 	}, "")
 	requireStatus(t, invalidRefresh, http.StatusUnauthorized)

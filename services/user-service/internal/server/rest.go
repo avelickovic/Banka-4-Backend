@@ -24,11 +24,20 @@ import (
 	"go.uber.org/fx"
 )
 
-func NewServer(lc fx.Lifecycle, cfg *config.Configuration, healthHandler *handler.HealthHandler, empHandler *handler.EmployeeHandler, verifier auth.TokenVerifier, permissions auth.PermissionProvider) {
+func NewServer(
+	lc fx.Lifecycle,
+	cfg *config.Configuration,
+	healthHandler *handler.HealthHandler,
+	authHandler *handler.AuthHandler,
+	empHandler *handler.EmployeeHandler,
+	clientHandler *handler.ClientHandler,
+	verifier auth.TokenVerifier,
+	permissions auth.PermissionProvider,
+) {
 	r := gin.New()
 
 	InitRouter(r, cfg)
-	SetupRoutes(r, healthHandler, empHandler, verifier, permissions)
+	SetupRoutes(r, healthHandler, authHandler, empHandler, clientHandler, verifier, permissions)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -53,36 +62,51 @@ func InitRouter(r *gin.Engine, cfg *config.Configuration) {
 	r.Use(logging.Logger())
 	r.Use(errors.ErrorHandler())
 
-	// Registrujemo custom validator za password
 	validator.RegisterValidators()
 }
 
-func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, empHandler *handler.EmployeeHandler, verifier auth.TokenVerifier, permissions auth.PermissionProvider) {
+func SetupRoutes(
+	r *gin.Engine,
+	healthHandler *handler.HealthHandler,
+	authHandler *handler.AuthHandler,
+	empHandler *handler.EmployeeHandler,
+	clientHandler *handler.ClientHandler,
+	verifier auth.TokenVerifier,
+	permissions auth.PermissionProvider,
+) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api")
 	{
 		api.GET("/health", healthHandler.Health)
 
-		emp := api.Group("/employees")
+		authGroup := api.Group("/auth")
 		{
-			emp.POST("/login", empHandler.Login)
-			emp.POST("/activate", empHandler.Activate)
+			authGroup.POST("/login", authHandler.Login)
+			authGroup.POST("/activate", authHandler.Activate)
+			authGroup.POST("/forgot-password", authHandler.ForgotPassword)
+			authGroup.POST("/reset-password", authHandler.ResetPassword)
+			authGroup.POST("/refresh", authHandler.RefreshToken)
+		}
 
-			emp.POST("/forgot-password", empHandler.ForgotPassword)
-			emp.POST("/reset-password", empHandler.ResetPassword)
+		authProtected := api.Group("/auth")
+		authProtected.Use(auth.Middleware(verifier, permissions))
+		{
+			authProtected.POST("/change-password", authHandler.ChangePassword)
+		}
 
-			emp.POST("/refresh", empHandler.RefreshToken)
+		emp := api.Group("/employees")
+		emp.Use(auth.Middleware(verifier, permissions))
+		{
+			emp.POST("/register", auth.RequirePermission(permission.EmployeeCreate), empHandler.Register)
+			emp.GET("/:id", auth.RequirePermission(permission.EmployeeView), empHandler.GetEmployee)
+			emp.PATCH("/:id", auth.RequirePermission(permission.EmployeeUpdate), empHandler.UpdateEmployee)
+			emp.GET("", auth.RequirePermission(permission.EmployeeView), empHandler.ListEmployees)
+		}
 
-			protected := emp.Group("")
-			protected.Use(auth.Middleware(verifier, permissions))
-			{
-				protected.POST("/register", auth.RequirePermission(permission.EmployeeCreate), empHandler.Register)
-				protected.GET("/:id", auth.RequirePermission(permission.EmployeeView), empHandler.GetEmployee)
-				protected.PATCH("/:id", auth.RequirePermission(permission.EmployeeUpdate), empHandler.UpdateEmployee)
-				protected.GET("", auth.RequirePermission(permission.EmployeeView), empHandler.ListEmployees)
-				protected.POST("/change-password", empHandler.ChangePassword)
-			}
+		cli := api.Group("/clients")
+		{
+			cli.POST("/register", clientHandler.Register)
 		}
 	}
 }

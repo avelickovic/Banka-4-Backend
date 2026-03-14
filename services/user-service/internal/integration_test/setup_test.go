@@ -95,7 +95,9 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	})
 
 	if err := db.AutoMigrate(
+		&model.Identity{},
 		&model.Employee{},
+		&model.Client{},
 		&model.Position{},
 		&model.ActivationToken{},
 		&model.ResetToken{},
@@ -113,23 +115,47 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 
 	cfg := testConfig()
 
+	identityRepo := repository.NewIdentityRepository(db)
 	empRepo := repository.NewEmployeeRepository(db)
+	clientRepo := repository.NewClientRepository(db)
 	actTokenRepo := repository.NewActivationTokenRepository(db)
 	resetTokenRepo := repository.NewResetTokenRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	positionRepo := repository.NewPositionRepository(db)
 
-	svc := service.NewEmployeeService(
+	mailer := &fakeMailer{}
+
+	authSvc := service.NewAuthService(
+		identityRepo,
 		empRepo,
+		clientRepo,
 		actTokenRepo,
 		resetTokenRepo,
 		refreshTokenRepo,
-		positionRepo,
-		&fakeMailer{},
+		mailer,
 		cfg,
 	)
 
-	empHandler := handler.NewEmployeeHandler(svc)
+	empSvc := service.NewEmployeeService(
+		empRepo,
+		identityRepo,
+		actTokenRepo,
+		positionRepo,
+		mailer,
+		cfg,
+	)
+
+	clientSvc := service.NewClientService(
+		clientRepo,
+		identityRepo,
+		actTokenRepo,
+		mailer,
+		cfg,
+	)
+
+	authHandler := handler.NewAuthHandler(authSvc)
+	empHandler := handler.NewEmployeeHandler(empSvc)
+	clientHandler := handler.NewClientHandler(clientSvc)
 	healthHandler := handler.NewHealthHandler()
 
 	r := gin.New()
@@ -137,7 +163,9 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 	server.SetupRoutes(
 		r,
 		healthHandler,
+		authHandler,
 		empHandler,
+		clientHandler,
 		auth.TokenVerifier(commonjwt.NewJWTVerifier(cfg.JWTSecret)),
 		dbpermission.NewDBPermissionProvider(db),
 	)
@@ -171,12 +199,12 @@ func seedPosition(t *testing.T, db *gorm.DB) *model.Position {
 	return position
 }
 
-func seedEmployee(t *testing.T, db *gorm.DB, positionID uint) *model.Employee {
+func seedEmployee(t *testing.T, db *gorm.DB, positionID uint) (*model.Identity, *model.Employee) {
 	t.Helper()
 	return seedEmployeeWithPermissions(t, db, positionID)
 }
 
-func seedEmployeeWithPermissions(t *testing.T, db *gorm.DB, positionID uint, permissions ...commonpermission.Permission) *model.Employee {
+func seedEmployeeWithPermissions(t *testing.T, db *gorm.DB, positionID uint, permissions ...commonpermission.Permission) (*model.Identity, *model.Employee) {
 	t.Helper()
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("Password12"), bcrypt.MinCost)
@@ -185,17 +213,28 @@ func seedEmployeeWithPermissions(t *testing.T, db *gorm.DB, positionID uint, per
 	}
 
 	now := time.Now().UTC()
+	username := strings.ToLower(uniqueValue(t, "user"))
+	email := uniqueValue(t, "user") + "@example.com"
+
+	identity := &model.Identity{
+		Email:        email,
+		Username:     username,
+		PasswordHash: string(hashedPassword),
+		Type:         auth.IdentityEmployee,
+		Active:       true,
+	}
+	if err := db.Create(identity).Error; err != nil {
+		t.Fatalf("seed identity: %v", err)
+	}
+
 	employee := &model.Employee{
+		IdentityID:  identity.ID,
 		FirstName:   "Test",
 		LastName:    uniqueValue(t, "User"),
 		Gender:      "male",
 		DateOfBirth: now.AddDate(-30, 0, 0),
-		Email:       uniqueValue(t, "user") + "@example.com",
 		PhoneNumber: "0601234567",
 		Address:     "Integration Street 1",
-		Username:    strings.ToLower(uniqueValue(t, "user")),
-		Password:    string(hashedPassword),
-		Active:      true,
 		Department:  "Engineering",
 		PositionID:  positionID,
 	}
@@ -208,13 +247,23 @@ func seedEmployeeWithPermissions(t *testing.T, db *gorm.DB, positionID uint, per
 		t.Fatalf("seed employee: %v", err)
 	}
 
-	return employee
+	employee.Identity = *identity
+	return identity, employee
 }
 
-func authHeader(t *testing.T, userID uint) string {
+func authHeader(t *testing.T, identityID uint, employeeID ...uint) string {
 	t.Helper()
 
-	token, err := commonjwt.GenerateToken(userID, testConfig().JWTSecret, testConfig().JWTExpiry)
+	var employeeClaim *uint
+	if len(employeeID) > 0 {
+		employeeClaim = &employeeID[0]
+	}
+
+	token, err := commonjwt.GenerateToken(&commonjwt.Claims{
+		IdentityID:   identityID,
+		IdentityType: string(auth.IdentityEmployee),
+		EmployeeID:   employeeClaim,
+	}, testConfig().JWTSecret, testConfig().JWTExpiry)
 	if err != nil {
 		t.Fatalf("generate auth token: %v", err)
 	}
@@ -322,7 +371,7 @@ type appErrorResponse struct {
 func loginEmployee(t *testing.T, router *gin.Engine, email, password string) loginResponse {
 	t.Helper()
 
-	recorder := performRequest(t, router, http.MethodPost, "/api/employees/login", map[string]any{
+	recorder := performRequest(t, router, http.MethodPost, "/api/auth/login", map[string]any{
 		"email":    email,
 		"password": password,
 	}, "")
