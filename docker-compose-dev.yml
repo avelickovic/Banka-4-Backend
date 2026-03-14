@@ -40,6 +40,18 @@ services:
       - /go/pkg/mod
     working_dir: /app/services/user-service
 
+  maildev:
+    image: maildev/maildev:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "1080:1080"
+    environment:
+      MAILDEV_SMTP_PORT: 1025
+      MAILDEV_WEB_PORT: 1080
+    volumes:
+      - maildev_data:/data
 
 volumes:
   user_service_db_data:
+  maildev_data:
