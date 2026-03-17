@@ -59,11 +59,15 @@ func main() {
 			repository.NewCompanyRepository,
 			repository.NewExchangeRateRepository,
 			service.NewExchangeService,
+			repository.NewPaymentRepository,
+			repository.NewTransactionRepository,
 			service.NewAccountService,
 			service.NewCompanyService,
+			service.NewPaymentService,
 			handler.NewAccountHandler,
 			handler.NewCompanyHandler,
 			handler.NewExchangeHandler,
+			handler.NewPaymentHandler,
 		),
 		fx.Invoke(func(cfg *config.Configuration) error {
 			return logging.Init(cfg.Env)
@@ -75,6 +79,8 @@ func main() {
 				&model.Company{},
 				&model.Account{},
 				&model.ExchangeRate{},
+				&model.Transaction{},
+				&model.Payment{},
 			); err != nil {
 				return err
 			}
