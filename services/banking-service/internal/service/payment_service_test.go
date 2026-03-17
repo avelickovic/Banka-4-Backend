@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // ── Fake Repo ────────────────────────────────────────────────────────
@@ -40,20 +41,36 @@ func (f *fakePaymentRepo) Update(ctx context.Context, p *model.Payment) error {
 	return nil
 }
 
-
 type fakeTransactionRepo struct {
-	createErr   error
-	getErr      error
-	transaction *model.Transaction
+	createErr       error
+	getErr          error
+	updateErr       error
+	transaction     *model.Transaction
+	returnedTx      *model.Transaction
+	returnedTxErr   error
 }
 
-func (f *fakeTransactionRepo) Create(ctx context.Context, t *model.Transaction) error {
+func (f *fakeTransactionRepo) Create(_ context.Context, t *model.Transaction) error {
 	if f.createErr != nil {
 		return f.createErr
 	}
-	t.TransactionID = 1
+	t.TransactionID = 1 // simulate ID assignment
 	f.transaction = t
 	return nil
+}
+
+func (f *fakeTransactionRepo) GetByID(_ context.Context, _ uint) (*model.Transaction, error) {
+	// return preset transaction or error
+	return f.returnedTx, f.returnedTxErr
+}
+
+func (f *fakeTransactionRepo) GetByIDWithTx(_ context.Context, _ *gorm.DB, _ uint) (*model.Transaction, error) {
+	// reuse the same return logic as GetByID
+	return f.returnedTx, f.returnedTxErr
+}
+
+func (f *fakeTransactionRepo) UpdateWithTx(_ context.Context, _ *gorm.DB, _ *model.Transaction) error {
+	return f.updateErr
 }
 
 // ── Constructor ────────────────────────────────────────────────────────

@@ -30,3 +30,16 @@ func (r *accountRepository) AccountNumberExists(ctx context.Context, accountNumb
 
 	return count > 0, err
 }
+
+func (r *accountRepository) GetByAccountNumberWithTx(ctx context.Context, db *gorm.DB, accountNumber string) (*model.Account, error) {
+	var account model.Account
+	if err := db.WithContext(ctx).First(&account, accountNumber).Error; err != nil {
+		return nil, err
+	}
+	return &account, nil
+}
+
+func (r *accountRepository) UpdateWithTx(ctx context.Context, db *gorm.DB, account *model.Account) error {
+	return db.WithContext(ctx).Save(account).Error
+}
+
