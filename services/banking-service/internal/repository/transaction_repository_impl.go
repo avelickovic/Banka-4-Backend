@@ -2,6 +2,7 @@ package repository
 
 import (
 	"banking-service/internal/model"
+	"common/pkg/db"
 	"context"
 
 	"gorm.io/gorm"
@@ -19,3 +20,19 @@ func (r *transactionRepository) Create(ctx context.Context, transaction *model.T
 	return r.db.WithContext(ctx).Create(transaction).Error
 }
 
+func (r *transactionRepository) GetByID(ctx context.Context, id uint) (*model.Transaction, error) {
+	db := db.DBFromContext(ctx, r.db)
+
+	var transaction model.Transaction
+	if err := db.WithContext(ctx).First(&transaction, id).Error; err != nil {
+		return nil, err
+	}
+	return &transaction, nil
+}
+
+
+func (r *transactionRepository) Update(ctx context.Context, transaction *model.Transaction) error {
+	db := db.DBFromContext(ctx, r.db)
+
+	return db.WithContext(ctx).Save(transaction).Error
+}

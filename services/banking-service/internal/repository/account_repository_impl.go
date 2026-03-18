@@ -2,6 +2,7 @@ package repository
 
 import (
 	"banking-service/internal/model"
+	"common/pkg/db"
 	"context"
 
 	"gorm.io/gorm"
@@ -86,3 +87,20 @@ func (r *accountRepository) NameExistsForClient(ctx context.Context, clientID ui
 		Count(&count).Error
 	return count > 0, err
 }
+
+func (r *accountRepository) GetByAccountNumber(ctx context.Context, accountNumber string) (*model.Account, error) {
+	db := db.DBFromContext(ctx, r.db)
+
+	var account model.Account
+	if err := db.WithContext(ctx).First(&account, accountNumber).Error; err != nil {
+		return nil, err
+	}
+	return &account, nil
+}
+
+func (r *accountRepository) Update(ctx context.Context, account *model.Account) error {
+	db := db.DBFromContext(ctx, r.db)
+
+	return db.WithContext(ctx).Save(account).Error
+}
+

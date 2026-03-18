@@ -27,6 +27,9 @@ type fakeAccountRepo struct {
 	nameExistsErr   error
 	updateNameErr   error
 	updateLimitsErr error
+	getByAccNumber      *model.Account
+	getByAccNumberErr   error
+	updateErr           error
 }
 
 func (r *fakeAccountRepo) Create(_ context.Context, _ *model.Account) error {
@@ -82,6 +85,13 @@ func (r *fakeVerificationTokenRepo) DeleteByAccountAndClient(_ context.Context, 
 
 func (r *fakeVerificationTokenRepo) MarkUsed(_ context.Context, _ uint) error {
 	return nil
+}
+func (r *fakeAccountRepo) GetByAccountNumber(_ context.Context, _ string) (*model.Account, error) {
+	return r.getByAccNumber, r.getByAccNumberErr
+}
+
+func (r *fakeAccountRepo) Update(_ context.Context, _ *model.Account) error {
+	return r.updateErr
 }
 
 type fakeAccountUserClient struct {

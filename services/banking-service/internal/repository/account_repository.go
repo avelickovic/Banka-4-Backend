@@ -14,4 +14,6 @@ type AccountRepository interface {
 	UpdateName(ctx context.Context, accountNumber string, name string) error
 	UpdateLimits(ctx context.Context, accountNumber string, daily float64, monthly float64) error
 	NameExistsForClient(ctx context.Context, clientID uint, name string, excludeNumber string) (bool, error)
+	GetByAccountNumber(ctx context.Context, accountNumber string) (*model.Account, error)
+	Update(ctx context.Context, account *model.Account) error
 }
