@@ -41,10 +41,11 @@ var clients = []struct {
 	Username    string
 	PhoneNumber string
 	Address     string
+	Password    string
 }{
-	{"Marko", "Markovic", "M", "1992-03-15", "marko.markovic@example.com", "marko.markovic", "+381601234567", "Knez Mihailova 10, Beograd"},
-	{"Ana", "Anic", "F", "1995-07-22", "ana.anic@example.com", "ana.anic", "+381609876543", "Bulevar Oslobodjenja 20, Novi Sad"},
-	{"Stefan", "Stefanovic", "M", "1988-11-30", "stefan.stefanovic@example.com", "stefan.stefanovic", "+381611112222", "Trg Republike 5, Beograd"},
+	{"Marko", "Markovic", "M", "1992-03-15", "marko.markovic@example.com", "marko.markovic", "+381601234567", "Knez Mihailova 10, Beograd", "password123"},
+	{"Ana", "Anic", "F", "1995-07-22", "ana.anic@example.com", "ana.anic", "+381609876543", "Bulevar Oslobodjenja 20, Novi Sad", "password123"},
+	{"Stefan", "Stefanovic", "M", "1988-11-30", "stefan.stefanovic@example.com", "stefan.stefanovic", "+381611112222", "Trg Republike 5, Beograd", "password123"},
 }
 
 func Run(db *gorm.DB) error {
@@ -114,6 +115,11 @@ func Run(db *gorm.DB) error {
 		if err := db.Where("email = ?", c.Email).First(&existingIdentity).Error; err == nil {
 			continue
 		}
+		
+		hash, err := bcrypt.GenerateFromPassword([]byte(c.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
 
 		dob, err := time.Parse("2006-01-02", c.DateOfBirth)
 		if err != nil {
@@ -121,10 +127,11 @@ func Run(db *gorm.DB) error {
 		}
 
 		identity := model.Identity{
-			Email:    c.Email,
-			Username: c.Username,
-			Type:     auth.IdentityClient,
-			Active:   true,
+			Email:        c.Email,
+			Username:     c.Username,
+			PasswordHash: string(hash),
+			Type:         auth.IdentityClient,
+			Active:       true,
 		}
 		if err := db.Create(&identity).Error; err != nil {
 			return err

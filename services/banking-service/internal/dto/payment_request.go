@@ -1,7 +1,5 @@
 package dto
 
-import "banking-service/internal/model"
-
 type CreatePaymentRequest struct {
 	RecipientName          string             `json:"recipient_name" binding:"required"`
 	RecipientAccountNumber string             `json:"recipient_account_number" binding:"required"`
@@ -10,7 +8,6 @@ type CreatePaymentRequest struct {
 	PaymentCode            string             `json:"payment_code"`
 	Purpose                string             `json:"purpose"`
 	PayerAccountNumber     string             `json:"payer_account_number" binding:"required"`
-	CurrencyCode           model.CurrencyCode `json:"currency" binding:"required"`
 }
 
 type VerifyPaymentRequest struct {

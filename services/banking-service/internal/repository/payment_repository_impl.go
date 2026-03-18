@@ -21,7 +21,7 @@ func (r *paymentRepository) Create(ctx context.Context, payment *model.Payment) 
 
 func (r *paymentRepository) GetByID(ctx context.Context, id uint) (*model.Payment, error) {
 	var payment model.Payment
-	if err := r.db.WithContext(ctx).First(&payment, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Transaction").First(&payment, id).Error; err != nil {
 		return nil, err
 	}
 	return &payment, nil

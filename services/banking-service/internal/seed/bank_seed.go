@@ -100,7 +100,7 @@ var accounts = []struct {
 	{
 		AccountNumber: "444000112345678913",
 		Name:          "Savings Account",
-		ClientID:      1,
+		ClientID:      3,
 		EmployeeID:    1,
 		Balance:       100000.00,
 		ExpiresAt:     time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -128,7 +128,7 @@ var accounts = []struct {
 	{
 		AccountNumber: "444000112345678922",
 		Name:          "Personal USD Account",
-		ClientID:      1,
+		ClientID:      3,
 		EmployeeID:    1,
 		Balance:       1500.00,
 		ExpiresAt:     time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC),
