@@ -4,6 +4,7 @@ import (
 	"banking-service/internal/dto"
 	"banking-service/internal/model"
 	"banking-service/internal/repository"
+	"common/pkg/auth"
 	"common/pkg/errors"
 	"context"
 )
@@ -107,6 +108,20 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req dto.CreatePaymen
 	return payment, nil
 }
 
+func (s *PaymentService) GetFilteredPayments(ctx context.Context, filter repository.PaymentFilter) ([]model.Payment, error) {
+	ac := auth.GetAuthFromContext(ctx)
+	if ac == nil || ac.ClientID == nil {
+		return nil, errors.UnauthorizedErr("not authenticated as client")
+	}
+
+	payments, err := s.paymentRepo.FindAllByClientID(ctx, *ac.ClientID, filter)
+	if err != nil {
+		return nil, errors.InternalErr(err)
+	}
+
+	return payments, nil
+}
+
 func (s *PaymentService) VerifyPayment(ctx context.Context, id uint, code string) (*model.Payment, error) {
 	payment, err := s.paymentRepo.GetByID(ctx, id)
 	if err != nil {
@@ -128,3 +143,5 @@ func (s *PaymentService) VerifyPayment(ctx context.Context, id uint, code string
 
 	return payment, nil
 }
+
+
