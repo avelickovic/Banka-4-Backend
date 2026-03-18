@@ -28,9 +28,9 @@ func NewServer(
 	healthHandler *handler.HealthHandler,
 	accountHandler *handler.AccountHandler,
 	companyHandler *handler.CompanyHandler,
-	cardHandler *handler.CardHandler,
 	exchangeHandler *handler.ExchangeHandler,
 	paymentHandler *handler.PaymentHandler,
+	cardHandler *handler.CardHandler,
 	verifier auth.TokenVerifier,
 	permissions auth.PermissionProvider,
 ) {
@@ -70,9 +70,9 @@ func SetupRoutes(
 	healthHandler *handler.HealthHandler,
 	accountHandler *handler.AccountHandler,
 	companyHandler *handler.CompanyHandler,
-	cardHandler *handler.CardHandler,
 	exchangeHandler *handler.ExchangeHandler,
 	paymentHandler *handler.PaymentHandler,
+	cardHandler *handler.CardHandler,
 	verifier auth.TokenVerifier,
 	permissions auth.PermissionProvider,
 ) {

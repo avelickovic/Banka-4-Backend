@@ -34,6 +34,12 @@ func (r *fakeCardServiceAccountRepo) FindByAccountNumber(_ context.Context, acco
 	return account, nil
 }
 
+func (f *fakeCardServiceAccountRepo) UpdateBalance(ctx context.Context, account *model.Account) error {
+	f.accounts[account.AccountNumber] = account
+	return nil
+}
+
+
 type fakeCardServiceCardRepo struct {
 	cards         map[uint]*model.Card
 	nextID        uint
