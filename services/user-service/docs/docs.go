@@ -599,6 +599,49 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/secret-mobile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns TOTP secret for currently authenticated client",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Get mobile verification secret",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.MobileSecretResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -692,7 +735,7 @@ const docTemplate = `{
                 },
                 "first_name": {
                     "type": "string",
-                    "maxLength": 50
+                    "maxLength": 20
                 },
                 "gender": {
                     "type": "string"
@@ -869,6 +912,14 @@ const docTemplate = `{
                 },
                 "user": {
                     "$ref": "#/definitions/dto.AuthUser"
+                }
+            }
+        },
+        "dto.MobileSecretResponse": {
+            "type": "object",
+            "properties": {
+                "secret": {
+                    "type": "string"
                 }
             }
         },

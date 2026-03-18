@@ -43,6 +43,10 @@ func main() {
 			func(cfg *config.Configuration) client.ExchangeRateClient {
 				return client.NewExchangeRateClient(cfg.ExchangeRateAPIKey)
 			},
+			fx.Annotate(
+				client.NewMobileSecretClient,
+				fx.As(new(client.MobileSecretClient)),
+			),
 			client.NewUserServiceConnection,
 			fx.Annotate(
 				clientgrpc.NewUserServiceClient,

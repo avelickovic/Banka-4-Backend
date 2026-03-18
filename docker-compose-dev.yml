@@ -47,6 +47,7 @@ services:
       AIR_CONFIG_PATH: /app/services/banking-service/.air.toml
       PORT: ${BANKING_SERVICE_PORT}
       USER_SERVICE_ADDR: user_service:50051
+      USER_SERVICE_BASE_URL: http://user_service:${PORT}
     depends_on:
       user_service_db:
         condition: service_healthy

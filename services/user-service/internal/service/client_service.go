@@ -4,6 +4,8 @@ import (
 	"common/pkg/auth"
 	"common/pkg/errors"
 	"context"
+	crand "crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"net/url"
 	"strings"
@@ -66,14 +68,20 @@ func (s *ClientService) Register(ctx context.Context, req *dto.CreateClientReque
 		return nil, errors.InternalErr(err)
 	}
 
+	mobileSecret, err := generateMobileVerificationSecret()
+	if err != nil {
+		return nil, errors.InternalErr(err)
+	}
+
 	client := &model.Client{
-		IdentityID:  identity.ID,
-		FirstName:   req.FirstName,
-		LastName:    req.LastName,
-		DateOfBirth: req.DateOfBirth,
-		Gender:      req.Gender,
-		PhoneNumber: req.PhoneNumber,
-		Address:     req.Address,
+		IdentityID:               identity.ID,
+		FirstName:                req.FirstName,
+		LastName:                 req.LastName,
+		MobileVerificationSecret: mobileSecret,
+		DateOfBirth:              req.DateOfBirth,
+		Gender:                   req.Gender,
+		PhoneNumber:              req.PhoneNumber,
+		Address:                  req.Address,
 	}
 	if err := s.clientRepo.Create(ctx, client); err != nil {
 		return nil, errors.InternalErr(err)
@@ -106,4 +114,30 @@ func (s *ClientService) Register(ctx context.Context, req *dto.CreateClientReque
 
 	client.Identity = *identity
 	return client, nil
+}
+
+func (s *ClientService) GetMobileVerificationSecret(ctx context.Context) (string, error) {
+	authCtx := auth.GetAuthFromContext(ctx)
+	if authCtx == nil || authCtx.ClientID == nil {
+		return "", errors.ForbiddenErr("client access required")
+	}
+
+	client, err := s.clientRepo.FindByID(ctx, *authCtx.ClientID)
+	if err != nil {
+		return "", errors.InternalErr(err)
+	}
+	if client == nil || client.MobileVerificationSecret == "" {
+		return "", errors.NotFoundErr("mobile verification secret not found")
+	}
+
+	return client.MobileVerificationSecret, nil
+}
+
+func generateMobileVerificationSecret() (string, error) {
+	secret := make([]byte, 20)
+	if _, err := crand.Read(secret); err != nil {
+		return "", err
+	}
+
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret), nil
 }

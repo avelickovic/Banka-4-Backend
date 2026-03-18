@@ -4,9 +4,11 @@ import (
 	"banking-service/internal/dto"
 	"banking-service/internal/model"
 	"banking-service/internal/repository"
+	"common/pkg/auth"
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -41,12 +43,12 @@ func (f *fakePaymentRepo) Update(ctx context.Context, p *model.Payment) error {
 }
 
 type fakeTransactionRepo struct {
-	createErr       error
-	getErr          error
-	updateErr       error
-	transaction     *model.Transaction
-	returnedTx      *model.Transaction
-	returnedTxErr   error
+	createErr     error
+	getErr        error
+	updateErr     error
+	transaction   *model.Transaction
+	returnedTx    *model.Transaction
+	returnedTxErr error
 }
 
 func (f *fakeTransactionRepo) Create(_ context.Context, t *model.Transaction) error {
@@ -122,6 +124,31 @@ func (f *fakeExchangeService) Convert(ctx context.Context, amount float64, from,
 	return amount * f.rate, nil
 }
 
+type fakeMobileSecretClient struct {
+	secret string
+	err    error
+}
+
+func (f *fakeMobileSecretClient) GetMobileSecret(_ context.Context, _ string) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	if f.secret != "" {
+		return f.secret, nil
+	}
+	return "JBSWY3DPEHPK3PXP", nil
+}
+
+type fakeVerifyTransactionProcessor struct {
+	err       error
+	processed []uint
+}
+
+func (f *fakeVerifyTransactionProcessor) Process(_ context.Context, transactionID uint) error {
+	f.processed = append(f.processed, transactionID)
+	return f.err
+}
+
 // ── Constructor ────────────────────────────────────────────────────────
 
 func newTestPaymentService(
@@ -131,11 +158,18 @@ func newTestPaymentService(
 	exchangeSvc CurrencyConverter,
 ) *PaymentService {
 	return &PaymentService{
-		paymentRepo:     paymentRepo,
-		transactionRepo: transactionRepo,
-		accountRepo:     accountRepo,
-		exchangeService: exchangeSvc,
+		paymentRepo:          paymentRepo,
+		transactionRepo:      transactionRepo,
+		accountRepo:          accountRepo,
+		exchangeService:      exchangeSvc,
+		mobileSecretClient:   &fakeMobileSecretClient{},
+		transactionProcessor: &fakeVerifyTransactionProcessor{},
+		now:                  time.Now,
 	}
+}
+
+func uintPtr(v uint) *uint {
+	return &v
 }
 
 // ── Tests ──────────────────────────────────────────────────────────
@@ -352,4 +386,61 @@ func TestCreatePayment_TransactionRepoError(t *testing.T) {
 	payment, err := svc.CreatePayment(context.Background(), req)
 	require.Nil(t, payment)
 	require.Error(t, err)
+}
+
+func TestVerifyPayment_InvalidCode(t *testing.T) {
+	paymentRepo := &fakePaymentRepo{
+		payment: &model.Payment{
+			PaymentID: 1,
+			Transaction: model.Transaction{
+				TransactionID:      42,
+				PayerAccountNumber: "87654321",
+				Status:             model.TransactionProcessing,
+			},
+		},
+	}
+
+	processor := &fakeVerifyTransactionProcessor{}
+	authCtx := auth.SetAuthOnContext(context.Background(), &auth.AuthContext{ClientID: uintPtr(11)})
+	svc := &PaymentService{
+		paymentRepo:          paymentRepo,
+		accountRepo:          newFakePaymentAccountRepo(&model.Account{AccountNumber: "87654321", ClientID: 11}),
+		mobileSecretClient:   &fakeMobileSecretClient{secret: "JBSWY3DPEHPK3PXP"},
+		transactionProcessor: processor,
+		now:                  func() time.Time { return time.Unix(59, 0) },
+	}
+
+	payment, err := svc.VerifyPayment(authCtx, 1, "000000", "Bearer token")
+	require.Nil(t, payment)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid verification code")
+	require.Empty(t, processor.processed)
+}
+
+func TestVerifyPayment_Success(t *testing.T) {
+	paymentRepo := &fakePaymentRepo{
+		payment: &model.Payment{
+			PaymentID: 1,
+			Transaction: model.Transaction{
+				TransactionID:      7,
+				PayerAccountNumber: "87654321",
+				Status:             model.TransactionProcessing,
+			},
+		},
+	}
+
+	processor := &fakeVerifyTransactionProcessor{}
+	authCtx := auth.SetAuthOnContext(context.Background(), &auth.AuthContext{ClientID: uintPtr(5)})
+	svc := &PaymentService{
+		paymentRepo:          paymentRepo,
+		accountRepo:          newFakePaymentAccountRepo(&model.Account{AccountNumber: "87654321", ClientID: 5}),
+		mobileSecretClient:   &fakeMobileSecretClient{secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"},
+		transactionProcessor: processor,
+		now:                  func() time.Time { return time.Unix(59, 0) },
+	}
+
+	payment, err := svc.VerifyPayment(authCtx, 1, "287082", "Bearer token")
+	require.NoError(t, err)
+	require.NotNil(t, payment)
+	require.Equal(t, []uint{7}, processor.processed)
 }

@@ -108,6 +108,12 @@ func SetupRoutes(
 		{
 			cli.POST("/register", clientHandler.Register)
 		}
+
+		mobileSecret := api.Group("")
+		mobileSecret.Use(auth.Middleware(verifier, permissions), auth.RequireIdentityType(auth.IdentityClient))
+		{
+			mobileSecret.GET("/secret-mobile", clientHandler.GetMobileSecret)
+		}
 	}
 }
 

@@ -33,6 +33,7 @@ type Configuration struct {
 	JWTSecret          string
 	GrpcPort           string // reserved for future banking-service gRPC endpoints
 	UserServiceAddr    string
+	UserServiceBaseURL string
 	ExchangeRateAPIKey string
 	URLs               URLConfig
 }
@@ -72,10 +73,11 @@ func Load() *Configuration {
 	_ = godotenv.Load()
 
 	return &Configuration{
-		Env:             GetOrDefault("ENV", "development"),
-		Port:            GetOrDefault("PORT", "8081"),
-		JWTSecret:       GetOrThrow("JWT_SECRET"),
+		Env:                GetOrDefault("ENV", "development"),
+		Port:               GetOrDefault("PORT", "8081"),
+		JWTSecret:          GetOrThrow("JWT_SECRET"),
 		UserServiceAddr:    GetOrDefault("USER_SERVICE_ADDR", "localhost:50051"),
+		UserServiceBaseURL: GetOrDefault("USER_SERVICE_BASE_URL", "http://localhost:8080"),
 		ExchangeRateAPIKey: GetOrThrow("EXCHANGE_RATE_API_KEY"),
 		DB: DBConfig{
 			Host:     GetOrThrow("DB_HOST"),
