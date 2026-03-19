@@ -50,5 +50,18 @@ func (r *transactionRepository) GetByRecipientAccountNumber(ctx context.Context,
 }
 
 func (r *transactionRepository) Update(ctx context.Context, transaction *model.Transaction) error {
-	return r.db.WithContext(ctx).Save(transaction).Error
+	currentDB := db.DBFromContext(ctx, r.db)
+
+	return currentDB.WithContext(ctx).
+		Model(&model.Transaction{}).
+		Where("transaction_id = ?", transaction.TransactionID).
+		Updates(map[string]interface{}{
+			"payer_account_number":     transaction.PayerAccountNumber,
+			"recipient_account_number": transaction.RecipientAccountNumber,
+			"start_amount":             transaction.StartAmount,
+			"start_currency_code":      transaction.StartCurrencyCode,
+			"end_amount":               transaction.EndAmount,
+			"end_currency_code":        transaction.EndCurrencyCode,
+			"status":                   transaction.Status,
+		}).Error
 }
