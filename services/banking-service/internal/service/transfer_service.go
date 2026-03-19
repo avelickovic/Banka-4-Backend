@@ -2,79 +2,142 @@ package service
 
 import (
 	"banking-service/internal/dto"
+	"banking-service/internal/model"
 	"banking-service/internal/repository"
+	"common/pkg/auth"
 	"common/pkg/errors"
 	"context"
-	"time"
+	"strings"
 )
 
+const (
+	defaultTransferPage     = 1
+	defaultTransferPageSize = 10
+	maxTransferPageSize     = 100
+)
+
+type transferCalculation struct {
+	fromAccount *model.Account
+	toAccount   *model.Account
+	initial     float64
+	debit       float64
+	final       float64
+	exchange    *float64
+	commission  float64
+}
+
 type TransferService struct {
-	repo repository.TransferRepository
+	transferRepo    repository.TransferRepository
+	transactionRepo repository.TransactionRepository
+	accountRepo     repository.AccountRepository
+	exchangeService CurrencyConverter
+	txManager       repository.TransactionManager
 }
 
 func NewTransferService(
-	repo repository.TransferRepository,
+	transferRepo repository.TransferRepository,
+	transactionRepo repository.TransactionRepository,
+	accountRepo repository.AccountRepository,
+	exchangeService CurrencyConverter,
+	txManager repository.TransactionManager,
 ) *TransferService {
 	return &TransferService{
-		repo: repo,
+		transferRepo:    transferRepo,
+		transactionRepo: transactionRepo,
+		accountRepo:     accountRepo,
+		exchangeService: exchangeService,
+		txManager:       txManager,
 	}
 }
 
-// ExecuteTransfer izvršava transfer između dva računa
-func (s *TransferService) ExecuteTransfer(ctx context.Context, req dto.CreateTransferRequest) (*dto.TransferResponse, error) {
-	if req.PayerAccountNumber == req.RecipientAccountNumber {
-		return nil, errors.UnprocessableEntityErr("cannot transfer to yourself")
+func (s *TransferService) ExecuteTransfer(ctx context.Context, req dto.TransferRequest) (*dto.TransferResponse, error) {
+	clientID, err := auth.GetSubjectFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// TODO: Validacija da su oba računa od iste klijente
-	// TODO: Proveriti dostupnost sredstava na source računu
-	// TODO: Implementirati conversion kroz Exchange Office za različite valute
-	// TODO: Charge commission (0-1%) za različite valute
-	// TODO: Kreirati Transaction record u transaction tabeli
+	var createdTransfer *model.Transfer
 
-	if err := s.repo.CreateTransfer(ctx, req.PayerAccountNumber, req.RecipientAccountNumber, req.Amount); err != nil {
-		return nil, errors.InternalErr(err)
+	err = s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		calculation, err := s.calculateTransfer(txCtx, clientID, req)
+		if err != nil {
+			return err
+		}
+
+		transaction := &model.Transaction{
+			PayerAccountNumber:     calculation.fromAccount.AccountNumber,
+			RecipientAccountNumber: calculation.toAccount.AccountNumber,
+			StartAmount:            calculation.initial,
+			StartCurrencyCode:      calculation.fromAccount.Currency.Code,
+			EndAmount:              calculation.final,
+			EndCurrencyCode:        calculation.toAccount.Currency.Code,
+			Status:                 model.TransactionCompleted,
+		}
+
+		if err := s.transactionRepo.Create(txCtx, transaction); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		model.UpdateBalances(calculation.fromAccount, -calculation.debit)
+		model.UpdateBalances(calculation.toAccount, calculation.final)
+
+		if err := s.accountRepo.UpdateBalance(txCtx, calculation.fromAccount); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		if err := s.accountRepo.UpdateBalance(txCtx, calculation.toAccount); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		transfer := &model.Transfer{
+			TransactionID: transaction.TransactionID,
+			ExchangeRate:  calculation.exchange,
+			Commission:    calculation.commission,
+			Transaction:   *transaction,
+		}
+
+		if err := s.transferRepo.Create(txCtx, transfer); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		createdTransfer = transfer
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	return &dto.TransferResponse{
-		PayerAccountNumber:     req.PayerAccountNumber,
-		RecipientAccountNumber: req.RecipientAccountNumber,
-		StartAmount:            req.Amount,
-		Status:                 "Pending",
-	}, nil
+	response := dto.ToTransferResponse(createdTransfer)
+	return &response, nil
 }
 
-// GetTransferHistory vraća historiju transfera za klijentov račun
-func (s *TransferService) GetTransferHistory(ctx context.Context, accountNum string, status string, startDate, endDate string, page, pageSize int) (*dto.ListTransfersResponse, error) {
+func (s *TransferService) GetTransferHistory(ctx context.Context, clientID uint, page, pageSize int) (*dto.ListTransfersResponse, error) {
 	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 10
+		page = defaultTransferPage
 	}
 
-	transfers, total, err := s.repo.GetTransferHistory(ctx, accountNum, status, startDate, endDate, page, pageSize)
+	if pageSize < 1 || pageSize > maxTransferPageSize {
+		pageSize = defaultTransferPageSize
+	}
+
+	transfers, total, err := s.transferRepo.ListByClientID(ctx, clientID, page, pageSize)
 	if err != nil {
 		return nil, errors.InternalErr(err)
 	}
 
-	var transferDTOs []dto.TransferResponse
-	for _, t := range transfers {
-		transferDTOs = append(transferDTOs, dto.TransferResponse{
-			TransactionID:          t.TransactionID,
-			PayerAccountNumber:     t.PayerAccountNumber,
-			RecipientAccountNumber: t.RecipientAccountNumber,
-			Amount:                 t.Amount,
-			Description:            t.Description,
-			Status:                 t.Status,
-			CreatedAt:              parseTime(t.CreatedAt),
-		})
+	items := make([]dto.TransferResponse, 0, len(transfers))
+	for i := range transfers {
+		items = append(items, dto.ToTransferResponse(&transfers[i]))
 	}
 
-	totalPages := (int(total) + pageSize - 1) / pageSize
+	totalPages := 0
+	if total > 0 {
+		totalPages = (int(total) + pageSize - 1) / pageSize
+	}
 
 	return &dto.ListTransfersResponse{
-		Data:       transferDTOs,
+		Data:       items,
 		Total:      total,
 		Page:       page,
 		PageSize:   pageSize,
@@ -82,7 +145,82 @@ func (s *TransferService) GetTransferHistory(ctx context.Context, accountNum str
 	}, nil
 }
 
-func parseTime(timeStr string) time.Time {
-	t, _ := time.Parse(time.RFC3339, timeStr)
-	return t
+func (s *TransferService) calculateTransfer(ctx context.Context, clientID uint, req dto.TransferRequest) (*transferCalculation, error) {
+	fromAccountNumber := strings.TrimSpace(req.FromAccountNumber)
+	toAccountNumber := strings.TrimSpace(req.ToAccountNumber)
+	if fromAccountNumber == "" || toAccountNumber == "" {
+		return nil, errors.BadRequestErr("from_account_number and to_account_number are required")
+	}
+
+	if fromAccountNumber == toAccountNumber {
+		return nil, errors.BadRequestErr("source and destination account must be different")
+	}
+
+	if req.Amount <= 0 {
+		return nil, errors.BadRequestErr("amount must be greater than 0")
+	}
+
+	fromAccount, err := s.accountRepo.FindByAccountNumber(ctx, fromAccountNumber)
+	if err != nil {
+		return nil, errors.InternalErr(err)
+	}
+
+	if fromAccount == nil {
+		return nil, errors.NotFoundErr("source account not found")
+	}
+
+	toAccount, err := s.accountRepo.FindByAccountNumber(ctx, toAccountNumber)
+	if err != nil {
+		return nil, errors.InternalErr(err)
+	}
+
+	if toAccount == nil {
+		return nil, errors.NotFoundErr("destination account not found")
+	}
+
+	if fromAccount.ClientID != clientID || toAccount.ClientID != clientID {
+		return nil, errors.ForbiddenErr("accounts do not belong to the provided client")
+	}
+
+	if !isAccountActive(fromAccount.Status) {
+		return nil, errors.BadRequestErr("source account is not active")
+	}
+
+	if !isAccountActive(toAccount.Status) {
+		return nil, errors.BadRequestErr("destination account is not active")
+	}
+
+	calculation := &transferCalculation{
+		fromAccount: fromAccount,
+		toAccount:   toAccount,
+		initial:     req.Amount,
+		debit:       req.Amount,
+		final:       req.Amount,
+		commission:  0,
+	}
+
+	if fromAccount.Currency.Code != toAccount.Currency.Code {
+		convertedAmount, err := s.exchangeService.Convert(ctx, req.Amount, fromAccount.Currency.Code, toAccount.Currency.Code)
+		if err != nil {
+			return nil, err
+		}
+
+		commission := s.exchangeService.CalculateFee(req.Amount)
+		exchangeRate := convertedAmount / req.Amount
+
+		calculation.debit = req.Amount + commission
+		calculation.final = convertedAmount
+		calculation.exchange = &exchangeRate
+		calculation.commission = commission
+	}
+
+	if fromAccount.AvailableBalance < calculation.debit {
+		return nil, errors.BadRequestErr("insufficient funds")
+	}
+
+	return calculation, nil
+}
+
+func isAccountActive(status string) bool {
+	return strings.EqualFold(strings.TrimSpace(status), "Active")
 }

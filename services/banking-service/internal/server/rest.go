@@ -145,9 +145,6 @@ func SetupRoutes(
 			payees.DELETE("/:id", payeeHandler.Delete)
 		}
 
-		transfers := api.Group("/transfers")
-		transfers.Use(auth.Middleware(verifier, permissions))
-
 		cards := api.Group("/cards")
 		cards.Use(auth.Middleware(verifier, permissions))
 		{
@@ -167,8 +164,24 @@ func SetupRoutes(
 		payments := api.Group("/payments")
 		payments.Use(auth.Middleware(verifier, permissions))
 		{
-			transfers.POST("", transferHandler.ExecuteTransfer)
-			transfers.GET("", transferHandler.GetTransferHistory)
+			payments.POST("", paymentHandler.CreatePayment)
+			payments.POST("/:id/verify", paymentHandler.VerifyPayment)
+		}
+
+		transfers := api.Group("/transfers")
+		transfers.Use(auth.Middleware(verifier, permissions))
+		{
+			transfers.POST("", auth.RequireIdentityType(auth.IdentityClient), transferHandler.ExecuteTransfer)
+		}
+
+		clients := api.Group("/clients")
+		clients.Use(auth.Middleware(verifier, permissions))
+		{
+			transfers := clients.Group("/:clientId/transfers")
+			transfers.Use(auth.RequireClientSelf("clientId", true))
+			{
+				transfers.GET("", transferHandler.GetTransferHistory)
+			}
 		}
 
 		clientLoans := api.Group("/client/:client_id/loans")

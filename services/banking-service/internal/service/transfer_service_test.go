@@ -2,108 +2,541 @@ package service
 
 import (
 	"banking-service/internal/dto"
-	"banking-service/internal/repository"
+	"banking-service/internal/model"
+	"common/pkg/auth"
 	"context"
+	stderrors "errors"
+	"sort"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-type mockTransferRepo struct {
-	lastSourceAccount string
-	lastDestAccount   string
-	lastAmount        float64
-	lastDescription   string
+type fakeTransferAccountRepo struct {
+	accounts          map[string]model.Account
+	updateErrByNumber map[string]error
 }
 
-func (m *mockTransferRepo) CreateTransfer(ctx context.Context, sourceAccount, destAccount string, amount float64, description string) error {
-	m.lastSourceAccount = sourceAccount
-	m.lastDestAccount = destAccount
-	m.lastAmount = amount
-	m.lastDescription = description
+func (r *fakeTransferAccountRepo) Create(_ context.Context, _ *model.Account) error {
 	return nil
 }
 
-func (m *mockTransferRepo) GetTransferHistory(ctx context.Context, accountNum string, status string, startDate, endDate string, page, pageSize int) ([]repository.TransferHistory, int64, error) {
-	return []repository.TransferHistory{}, 0, nil
+func (r *fakeTransferAccountRepo) AccountNumberExists(_ context.Context, accountNumber string) (bool, error) {
+	_, exists := r.accounts[accountNumber]
+	return exists, nil
 }
 
-func TestExecuteTransfer_SameAccount(t *testing.T) {
-	repo := &mockTransferRepo{}
-	service := NewTransferService(repo)
+func (r *fakeTransferAccountRepo) FindByAccountNumber(_ context.Context, accountNumber string) (*model.Account, error) {
+	account, exists := r.accounts[accountNumber]
+	if !exists {
+		return nil, nil
+	}
+	copy := account
+	return &copy, nil
+}
 
-	req := dto.CreateTransferRequest{
-		SourceAccountNum: "444000112345678911",
-		DestAccountNum:   "444000112345678911",
-		Amount:           1000,
-		Description:      "Test",
+func (r *fakeTransferAccountRepo) UpdateBalance(_ context.Context, account *model.Account) error {
+	if err := r.updateErrByNumber[account.AccountNumber]; err != nil {
+		return err
+	}
+	r.accounts[account.AccountNumber] = *account
+	return nil
+}
+
+func (r *fakeTransferAccountRepo) clone() map[string]model.Account {
+	cloned := make(map[string]model.Account, len(r.accounts))
+	for key, value := range r.accounts {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func (r *fakeTransferAccountRepo) restore(snapshot map[string]model.Account) {
+	r.accounts = snapshot
+}
+
+type fakeTransferTransactionRepo struct {
+	createErr    error
+	transactions []model.Transaction
+	nextID       uint
+}
+
+func (r *fakeTransferTransactionRepo) Create(_ context.Context, transaction *model.Transaction) error {
+	if r.createErr != nil {
+		return r.createErr
 	}
 
-	_, err := service.ExecuteTransfer(context.Background(), req)
+	if r.nextID == 0 {
+		r.nextID = 1
+	}
 
-	if err == nil {
-		t.Error("expected error for same account transfer")
+	transaction.TransactionID = r.nextID
+	r.nextID++
+	transaction.CreatedAt = time.Now().UTC()
+
+	cloned := cloneTransaction(*transaction)
+	r.transactions = append(r.transactions, cloned)
+
+	return nil
+}
+
+func (r *fakeTransferTransactionRepo) GetByPayerAccountNumber(_ context.Context, _ string) ([]*model.Transaction, error) {
+	return nil, nil
+}
+
+func (r *fakeTransferTransactionRepo) GetByRecipientAccountNumber(_ context.Context, _ string) ([]*model.Transaction, error) {
+	return nil, nil
+}
+
+func (r *fakeTransferTransactionRepo) GetByID(_ context.Context, transactionID uint) (*model.Transaction, error) {
+	for _, transaction := range r.transactions {
+		if transaction.TransactionID == transactionID {
+			copy := transaction
+			return &copy, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeTransferTransactionRepo) Update(_ context.Context, _ *model.Transaction) error {
+	return nil
+}
+
+func (r *fakeTransferTransactionRepo) clone() []model.Transaction {
+	cloned := make([]model.Transaction, 0, len(r.transactions))
+	for _, transaction := range r.transactions {
+		cloned = append(cloned, cloneTransaction(transaction))
+	}
+	return cloned
+}
+
+func (r *fakeTransferTransactionRepo) restore(snapshot []model.Transaction) {
+	r.transactions = snapshot
+	var maxID uint
+	for _, transaction := range snapshot {
+		if transaction.TransactionID > maxID {
+			maxID = transaction.TransactionID
+		}
+	}
+	r.nextID = maxID + 1
+}
+
+type fakeTransferRepo struct {
+	createErr error
+	history   []model.Transfer
+	created   []model.Transfer
+}
+
+func (r *fakeTransferRepo) Create(_ context.Context, transfer *model.Transfer) error {
+	if r.createErr != nil {
+		return r.createErr
+	}
+
+	if transfer.TransferID == 0 {
+		transfer.TransferID = uint(len(r.created) + 1)
+	}
+
+	cloned := cloneTransfer(*transfer)
+	r.created = append(r.created, cloned)
+	r.history = append(r.history, cloned)
+	return nil
+}
+
+func (r *fakeTransferRepo) ListByClientID(_ context.Context, clientID uint, page, pageSize int) ([]model.Transfer, int64, error) {
+	filtered := make([]model.Transfer, 0)
+	for _, transfer := range r.history {
+		_ = clientID
+		filtered = append(filtered, cloneTransfer(transfer))
+	}
+
+	sort.Slice(filtered, func(i, j int) bool {
+		if filtered[i].Transaction.CreatedAt.Equal(filtered[j].Transaction.CreatedAt) {
+			return filtered[i].Transaction.TransactionID > filtered[j].Transaction.TransactionID
+		}
+		return filtered[i].Transaction.CreatedAt.After(filtered[j].Transaction.CreatedAt)
+	})
+
+	total := int64(len(filtered))
+	offset := (page - 1) * pageSize
+	if offset >= len(filtered) {
+		return []model.Transfer{}, total, nil
+	}
+
+	end := offset + pageSize
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+
+	return filtered[offset:end], total, nil
+}
+
+func (r *fakeTransferRepo) clone() []model.Transfer {
+	cloned := make([]model.Transfer, 0, len(r.history))
+	for _, transfer := range r.history {
+		cloned = append(cloned, cloneTransfer(transfer))
+	}
+	return cloned
+}
+
+func (r *fakeTransferRepo) restore(snapshot []model.Transfer) {
+	r.history = snapshot
+	r.created = make([]model.Transfer, 0)
+	for _, transfer := range snapshot {
+		r.created = append(r.created, cloneTransfer(transfer))
 	}
 }
 
-func TestExecuteTransfer_ValidTransfer(t *testing.T) {
-	repo := &mockTransferRepo{}
-	service := NewTransferService(repo)
+type fakeTransferExchangeConverter struct {
+	converted float64
+	err       error
+}
 
-	req := dto.CreateTransferRequest{
-		SourceAccountNum: "444000112345678911",
-		DestAccountNum:   "444000112345678913",
-		Amount:           1000,
-		Description:      "Test transfer",
+func (c *fakeTransferExchangeConverter) Convert(_ context.Context, amount float64, _, _ model.CurrencyCode) (float64, error) {
+	if c.err != nil {
+		return 0, c.err
 	}
+	if c.converted > 0 {
+		return c.converted, nil
+	}
+	return amount, nil
+}
 
-	transfer, err := service.ExecuteTransfer(context.Background(), req)
+func (c *fakeTransferExchangeConverter) CalculateFee(amount float64) float64 {
+	return amount * model.BankCommission
+}
 
+type fakeTransferTxManager struct {
+	accountRepo     *fakeTransferAccountRepo
+	transactionRepo *fakeTransferTransactionRepo
+	transferRepo    *fakeTransferRepo
+}
+
+func (m *fakeTransferTxManager) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	accountSnapshot := m.accountRepo.clone()
+	transactionSnapshot := m.transactionRepo.clone()
+	transferSnapshot := m.transferRepo.clone()
+
+	err := fn(ctx)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		m.accountRepo.restore(accountSnapshot)
+		m.transactionRepo.restore(transactionSnapshot)
+		m.transferRepo.restore(transferSnapshot)
+	}
+	return err
+}
+
+func TestExecuteTransferSameCurrency(t *testing.T) {
+	env := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM-RSD", 1, model.RSD, 1000, "Active"),
+			testAccount("TO-RSD", 1, model.RSD, 100, "Active"),
+		},
+		&fakeTransferExchangeConverter{},
+	)
+
+	response, err := env.service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "FROM-RSD",
+			ToAccountNumber:   "TO-RSD",
+			Amount:            200,
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, 200.0, response.InitialAmount)
+	require.Equal(t, 200.0, response.FinalAmount)
+	require.Equal(t, 0.0, response.Commission)
+	require.Nil(t, response.ExchangeRate)
+}
+
+func TestExecuteTransferCrossCurrency(t *testing.T) {
+	env := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM-RSD", 1, model.RSD, 1000, "Active"),
+			testAccount("TO-EUR", 1, model.EUR, 100, "Active"),
+		},
+		&fakeTransferExchangeConverter{converted: 120},
+	)
+
+	response, err := env.service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "FROM-RSD",
+			ToAccountNumber:   "TO-EUR",
+			Amount:            100,
+		},
+	)
+
+	require.NoError(t, err)
+	require.InDelta(t, 1.2, *response.ExchangeRate, 0.000001)
+	require.InDelta(t, 1.5, response.Commission, 0.000001)
+	require.InDelta(t, 120.0, response.FinalAmount, 0.000001)
+	require.InDelta(t, 898.5, env.accountRepo.accounts["FROM-RSD"].AvailableBalance, 0.000001)
+	require.InDelta(t, 220.0, env.accountRepo.accounts["TO-EUR"].AvailableBalance, 0.000001)
+}
+
+func TestTransferRejectsSameSourceAndDestination(t *testing.T) {
+	service := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("ACC-1", 1, model.RSD, 1000, "Active"),
+		},
+		&fakeTransferExchangeConverter{},
+	).service
+
+	_, err := service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "ACC-1",
+			ToAccountNumber:   "ACC-1",
+			Amount:            100,
+		},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "source and destination account must be different")
+}
+
+func TestTransferRejectsWhenAccountDoesNotBelongToClient(t *testing.T) {
+	service := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM-OWN", 1, model.RSD, 1000, "Active"),
+			testAccount("TO-OTHER", 2, model.RSD, 100, "Active"),
+		},
+		&fakeTransferExchangeConverter{},
+	).service
+
+	_, err := service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "FROM-OWN",
+			ToAccountNumber:   "TO-OTHER",
+			Amount:            100,
+		},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "accounts do not belong to the provided client")
+}
+
+func TestTransferRejectsInsufficientFunds(t *testing.T) {
+	service := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM-LOW", 1, model.RSD, 50, "Active"),
+			testAccount("TO-RSD", 1, model.RSD, 100, "Active"),
+		},
+		&fakeTransferExchangeConverter{},
+	).service
+
+	_, err := service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "FROM-LOW",
+			ToAccountNumber:   "TO-RSD",
+			Amount:            100,
+		},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "insufficient funds")
+}
+
+func TestTransferRejectsInsufficientFundsWhenCommissionApplies(t *testing.T) {
+	service := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM-RSD", 1, model.RSD, 100, "Active"),
+			testAccount("TO-EUR", 1, model.EUR, 100, "Active"),
+		},
+		&fakeTransferExchangeConverter{converted: 120},
+	).service
+
+	_, err := service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "FROM-RSD",
+			ToAccountNumber:   "TO-EUR",
+			Amount:            100,
+		},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "insufficient funds")
+}
+
+func TestExecuteTransferPersistsAndUpdatesBalances(t *testing.T) {
+	env := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM-RSD", 1, model.RSD, 1000, "Active"),
+			testAccount("TO-RSD", 1, model.RSD, 500, "Active"),
+		},
+		&fakeTransferExchangeConverter{},
+	)
+
+	response, err := env.service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "FROM-RSD",
+			ToAccountNumber:   "TO-RSD",
+			Amount:            250,
+		},
+	)
+
+	require.NoError(t, err)
+	require.NotZero(t, response.TransferID)
+	require.Equal(t, 1, len(env.transactionRepo.transactions))
+	require.Equal(t, 1, len(env.transferRepo.created))
+	require.InDelta(t, 750.0, env.accountRepo.accounts["FROM-RSD"].AvailableBalance, 0.000001)
+	require.InDelta(t, 750.0, env.accountRepo.accounts["TO-RSD"].AvailableBalance, 0.000001)
+}
+
+func TestExecuteTransferRollsBackWhenPersistenceFails(t *testing.T) {
+	env := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM-RSD", 1, model.RSD, 1000, "Active"),
+			testAccount("TO-RSD", 1, model.RSD, 500, "Active"),
+		},
+		&fakeTransferExchangeConverter{},
+	)
+	env.transferRepo.createErr = stderrors.New("insert failed")
+
+	_, err := env.service.ExecuteTransfer(
+		transferClientContext(1),
+		dto.TransferRequest{
+			FromAccountNumber: "FROM-RSD",
+			ToAccountNumber:   "TO-RSD",
+			Amount:            250,
+		},
+	)
+
+	require.Error(t, err)
+	require.Equal(t, 0, len(env.transferRepo.created))
+	require.Equal(t, 0, len(env.transactionRepo.transactions))
+	require.InDelta(t, 1000.0, env.accountRepo.accounts["FROM-RSD"].AvailableBalance, 0.000001)
+	require.InDelta(t, 500.0, env.accountRepo.accounts["TO-RSD"].AvailableBalance, 0.000001)
+}
+
+func TestTransferHistoryReturnsNewestFirst(t *testing.T) {
+	env := newTransferServiceForTests(
+		[]model.Account{
+			testAccount("FROM", 1, model.RSD, 1000, "Active"),
+			testAccount("TO", 1, model.RSD, 1000, "Active"),
+		},
+		&fakeTransferExchangeConverter{},
+	)
+
+	now := time.Now().UTC()
+
+	env.transferRepo.history = []model.Transfer{
+		{
+			TransferID:    1,
+			TransactionID: 7,
+			Transaction: model.Transaction{
+				TransactionID:          7,
+				PayerAccountNumber:     "FROM",
+				RecipientAccountNumber: "TO",
+				StartAmount:            100,
+				EndAmount:              100,
+				CreatedAt:              now.Add(-10 * time.Minute),
+			},
+		},
+		{
+			TransferID:    2,
+			TransactionID: 9,
+			Transaction: model.Transaction{
+				TransactionID:          9,
+				PayerAccountNumber:     "FROM",
+				RecipientAccountNumber: "TO",
+				StartAmount:            100,
+				EndAmount:              100,
+				CreatedAt:              now,
+			},
+		},
+		{
+			TransferID:    3,
+			TransactionID: 8,
+			Transaction: model.Transaction{
+				TransactionID:          8,
+				PayerAccountNumber:     "FROM",
+				RecipientAccountNumber: "TO",
+				StartAmount:            100,
+				EndAmount:              100,
+				CreatedAt:              now.Add(-5 * time.Minute),
+			},
+		},
 	}
 
-	if transfer.SourceAccountNum != req.SourceAccountNum {
-		t.Errorf("expected source %s, got %s", req.SourceAccountNum, transfer.SourceAccountNum)
+	response, err := env.service.GetTransferHistory(transferClientContext(1), 1, 1, 10)
+	require.NoError(t, err)
+	require.Len(t, response.Data, 3)
+	require.Equal(t, uint(9), response.Data[0].TransactionID)
+	require.Equal(t, uint(8), response.Data[1].TransactionID)
+	require.Equal(t, uint(7), response.Data[2].TransactionID)
+}
+
+type transferTestEnv struct {
+	service         *TransferService
+	accountRepo     *fakeTransferAccountRepo
+	transactionRepo *fakeTransferTransactionRepo
+	transferRepo    *fakeTransferRepo
+}
+
+func newTransferServiceForTests(accounts []model.Account, converter *fakeTransferExchangeConverter) *transferTestEnv {
+	accountRepo := &fakeTransferAccountRepo{
+		accounts:          map[string]model.Account{},
+		updateErrByNumber: map[string]error{},
+	}
+	for _, account := range accounts {
+		accountRepo.accounts[account.AccountNumber] = account
 	}
 
-	if transfer.Amount != req.Amount {
-		t.Errorf("expected amount %.2f, got %.2f", req.Amount, transfer.Amount)
+	transactionRepo := &fakeTransferTransactionRepo{}
+	transferRepo := &fakeTransferRepo{
+		history: []model.Transfer{},
+		created: []model.Transfer{},
 	}
 
-	if repo.lastSourceAccount != req.SourceAccountNum {
-		t.Errorf("repository received wrong source account")
+	txManager := &fakeTransferTxManager{
+		accountRepo:     accountRepo,
+		transactionRepo: transactionRepo,
+		transferRepo:    transferRepo,
+	}
+
+	service := NewTransferService(transferRepo, transactionRepo, accountRepo, converter, txManager)
+	return &transferTestEnv{
+		service:         service,
+		accountRepo:     accountRepo,
+		transactionRepo: transactionRepo,
+		transferRepo:    transferRepo,
 	}
 }
 
-func TestGetTransferHistory_DefaultPagination(t *testing.T) {
-	repo := &mockTransferRepo{}
-	service := NewTransferService(repo)
-
-	result, err := service.GetTransferHistory(context.Background(), "444000112345678911", "", "", "", 0, 0)
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if result.Page != 1 {
-		t.Errorf("expected page 1, got %d", result.Page)
-	}
-
-	if result.PageSize != 10 {
-		t.Errorf("expected page size 10, got %d", result.PageSize)
+func testAccount(number string, clientID uint, currency model.CurrencyCode, balance float64, status string) model.Account {
+	return model.Account{
+		AccountNumber:    number,
+		ClientID:         clientID,
+		Balance:          balance,
+		AvailableBalance: balance,
+		Status:           status,
+		Currency:         model.Currency{Code: currency},
 	}
 }
 
-func TestGetTransferHistory_MaxPageSize(t *testing.T) {
-	repo := &mockTransferRepo{}
-	service := NewTransferService(repo)
+func transferClientContext(clientID uint) context.Context {
+	return auth.SetAuthOnContext(context.Background(), &auth.AuthContext{
+		IdentityType: auth.IdentityClient,
+		ClientID:     &clientID,
+	})
+}
 
-	result, err := service.GetTransferHistory(context.Background(), "444000112345678911", "", "", "", 1, 200)
+func cloneTransaction(transaction model.Transaction) model.Transaction { return transaction }
 
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func cloneTransfer(transfer model.Transfer) model.Transfer {
+	cloned := transfer
+	if transfer.ExchangeRate != nil {
+		value := *transfer.ExchangeRate
+		cloned.ExchangeRate = &value
 	}
-
-	if result.PageSize != 10 {
-		t.Errorf("expected page size capped to 10, got %d", result.PageSize)
-	}
+	cloned.Transaction = cloneTransaction(transfer.Transaction)
+	return cloned
 }

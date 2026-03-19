@@ -81,28 +81,28 @@ func TestConvert(t *testing.T) {
 			amount:  10000,
 			from:    model.RSD,
 			to:      model.EUR,
-			wantAmt: roundTo2(10000 / eurBuy),
+			wantAmt: roundTo2(10000 / eurSell),
 		},
 		{
 			name:    "EUR to RSD",
 			amount:  100,
 			from:    model.EUR,
 			to:      model.RSD,
-			wantAmt: roundTo2(100 * eurSell),
+			wantAmt: roundTo2(100 * eurBuy),
 		},
 		{
 			name:    "USD to RSD",
 			amount:  100,
 			from:    model.USD,
 			to:      model.RSD,
-			wantAmt: roundTo2(100 * usdSell),
+			wantAmt: roundTo2(100 * usdBuy),
 		},
 		{
 			name:    "EUR to USD",
 			amount:  100,
 			from:    model.EUR,
 			to:      model.USD,
-			wantAmt: roundTo2((100 * eurSell) / usdBuy),
+			wantAmt: roundTo2((100 * eurBuy) / usdSell),
 		},
 		{
 			name:    "same currency EUR to EUR",
@@ -205,4 +205,14 @@ func TestGetRates_Success(t *testing.T) {
 	result, err := svc.GetRates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, result, 2)
+}
+
+func TestCalculateFee(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestService(buildTestRates())
+
+	require.InDelta(t, 1.85, svc.CalculateFee(123.456), 0.000001)
+	require.Equal(t, 0.0, svc.CalculateFee(0))
+	require.Equal(t, 0.0, svc.CalculateFee(-10))
 }

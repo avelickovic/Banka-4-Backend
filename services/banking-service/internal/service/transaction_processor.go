@@ -21,10 +21,10 @@ var BankAccounts = map[model.CurrencyCode]string{
 type TransactionProcessor struct {
 	accountRepo     repository.AccountRepository
 	transactionRepo repository.TransactionRepository
-	txManager       *repository.GormTransactionManager
+	txManager       repository.TransactionManager
 }
 
-func NewTransactionProcessor(accountRepo repository.AccountRepository, transactionRepo repository.TransactionRepository, txManager *repository.GormTransactionManager) *TransactionProcessor {
+func NewTransactionProcessor(accountRepo repository.AccountRepository, transactionRepo repository.TransactionRepository, txManager repository.TransactionManager) *TransactionProcessor {
 	return &TransactionProcessor{accountRepo: accountRepo, transactionRepo: transactionRepo, txManager: txManager}
 }
 
@@ -32,7 +32,7 @@ func (tp *TransactionProcessor) Process(ctx context.Context, transactionID uint)
 	return tp.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		transaction, err := tp.transactionRepo.GetByID(ctx, transactionID)
 		if err != nil {
-				return errors.InternalErr(err)
+			return errors.InternalErr(err)
 		}
 
 		if transaction.Status != model.TransactionProcessing {
@@ -41,14 +41,14 @@ func (tp *TransactionProcessor) Process(ctx context.Context, transactionID uint)
 
 		payer, err := tp.accountRepo.FindByAccountNumber(ctx, transaction.PayerAccountNumber)
 		if err != nil {
-				return errors.InternalErr(err)
+			return errors.InternalErr(err)
 		}
-		
+
 		// Check funds
 		if payer.AvailableBalance < transaction.StartAmount {
-				return errors.BadRequestErr("insufficient payer funds")
+			return errors.BadRequestErr("insufficient payer funds")
 		}
-		
+
 		// Check limits
 		if payer.DailySpending+transaction.StartAmount > payer.DailyLimit {
 			return errors.BadRequestErr("daily limit exceeded")
@@ -60,32 +60,32 @@ func (tp *TransactionProcessor) Process(ctx context.Context, transactionID uint)
 
 		recipient, err := tp.accountRepo.FindByAccountNumber(ctx, transaction.RecipientAccountNumber)
 		if err != nil {
-				return errors.InternalErr(err)
+			return errors.InternalErr(err)
 		}
-		
+
 		if recipient.AccountNumber == payer.AccountNumber {
 			return errors.BadRequestErr("cannot make payment to the same account")
 		}
 
 		for _, acc := range BankAccounts {
-    	if recipient.AccountNumber == acc {
-      	  return errors.BadRequestErr("recipient account cannot be one of the banks accounts")
-    	}
+			if recipient.AccountNumber == acc {
+				return errors.BadRequestErr("recipient account cannot be one of the banks accounts")
+			}
 		}
 
 		if transaction.StartCurrencyCode != transaction.EndCurrencyCode {
 			banksAccountTo, err := tp.accountRepo.FindByAccountNumber(ctx, BankAccounts[transaction.StartCurrencyCode])
 			if err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 
 			banksAccountFrom, err := tp.accountRepo.FindByAccountNumber(ctx, BankAccounts[transaction.EndCurrencyCode])
 			if err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 
 			if banksAccountFrom.AvailableBalance < transaction.EndAmount {
-					return errors.BadRequestErr("insufficient banks funds")
+				return errors.BadRequestErr("insufficient banks funds")
 			}
 
 			model.UpdateBalances(payer, -transaction.StartAmount)
@@ -94,26 +94,26 @@ func (tp *TransactionProcessor) Process(ctx context.Context, transactionID uint)
 			model.UpdateBalances(recipient, transaction.EndAmount)
 
 			if err := tp.accountRepo.UpdateBalance(ctx, payer); err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 			if err := tp.accountRepo.UpdateBalance(ctx, banksAccountTo); err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 			if err := tp.accountRepo.UpdateBalance(ctx, banksAccountFrom); err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 			if err := tp.accountRepo.UpdateBalance(ctx, recipient); err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 		} else {
 			model.UpdateBalances(payer, -transaction.StartAmount)
 			model.UpdateBalances(recipient, transaction.EndAmount)
 
 			if err := tp.accountRepo.UpdateBalance(ctx, payer); err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 			if err := tp.accountRepo.UpdateBalance(ctx, recipient); err != nil {
-					return errors.InternalErr(err)
+				return errors.InternalErr(err)
 			}
 		}
 

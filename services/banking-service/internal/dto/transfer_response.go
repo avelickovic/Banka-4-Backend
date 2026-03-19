@@ -6,27 +6,35 @@ import (
 )
 
 type TransferResponse struct {
-	TransactionID          uint                    `json:"transaction_id"`
-	PayerAccountNumber     string                  `json:"payer_account_number"`
-	RecipientAccountNumber string                  `json:"recipient_account_number"`
-	StartAmount            float64                 `json:"start_amount"`
-	StartCurrencyCode      model.CurrencyCode      `json:"start_currency_code"`
-	EndAmount              float64                 `json:"end_amount"`
-	EndCurrencyCode        model.CurrencyCode      `json:"end_currency_code"`
-	Status                 model.TransactionStatus `json:"status"`
-	CreatedAt              time.Time               `json:"created_at"`
+	TransferID        uint      `json:"transfer_id"`
+	TransactionID     uint      `json:"transaction_id"`
+	FromAccountNumber string    `json:"from_account_number"`
+	ToAccountNumber   string    `json:"to_account_number"`
+	InitialAmount     float64   `json:"initial_amount"`
+	FinalAmount       float64   `json:"final_amount"`
+	ExchangeRate      *float64  `json:"exchange_rate,omitempty"`
+	Commission        float64   `json:"commission"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
-func ToTransferResponse(t *model.Transaction) *TransferResponse {
-	return &TransferResponse{
-		TransactionID:          t.TransactionID,
-		PayerAccountNumber:     t.PayerAccountNumber,
-		RecipientAccountNumber: t.RecipientAccountNumber,
-		StartAmount:            t.StartAmount,
-		StartCurrencyCode:      t.StartCurrencyCode,
-		EndAmount:              t.EndAmount,
-		EndCurrencyCode:        t.EndCurrencyCode,
-		Status:                 t.Status,
-		CreatedAt:              t.CreatedAt,
+type ListTransfersResponse struct {
+	Data       []TransferResponse `json:"data"`
+	Total      int64              `json:"total"`
+	Page       int                `json:"page"`
+	PageSize   int                `json:"page_size"`
+	TotalPages int                `json:"total_pages"`
+}
+
+func ToTransferResponse(transfer *model.Transfer) TransferResponse {
+	return TransferResponse{
+		TransferID:        transfer.TransferID,
+		TransactionID:     transfer.TransactionID,
+		FromAccountNumber: transfer.Transaction.PayerAccountNumber,
+		ToAccountNumber:   transfer.Transaction.RecipientAccountNumber,
+		InitialAmount:     transfer.Transaction.StartAmount,
+		FinalAmount:       transfer.Transaction.EndAmount,
+		ExchangeRate:      transfer.ExchangeRate,
+		Commission:        transfer.Commission,
+		CreatedAt:         transfer.Transaction.CreatedAt,
 	}
 }

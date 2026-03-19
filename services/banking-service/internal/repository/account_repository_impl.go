@@ -81,14 +81,20 @@ func (r *accountRepository) FindByAccountNumber(ctx context.Context, accountNumb
 	db := db.DBFromContext(ctx, r.db)
 
 	var account model.Account
-	err := db.WithContext(ctx).Preload("Currency").First(&account, accountNumber).Error
+	err := db.WithContext(ctx).
+		Preload("Currency").
+		Where("account_number = ?", accountNumber).
+		First(&account).
+		Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &account, nil
 }
 

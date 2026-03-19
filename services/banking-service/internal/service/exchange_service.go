@@ -7,6 +7,7 @@ import (
 	"common/pkg/errors"
 	"context"
 	"log"
+	"math"
 	"time"
 )
 
@@ -126,6 +127,15 @@ func (s *ExchangeService) Convert(ctx context.Context, amount float64, from, to 
 	return s.fromRSD(rsdAmount, to, rateMap)
 }
 
+func (s *ExchangeService) CalculateFee(amount float64) float64 {
+	if amount <= 0 {
+		return 0
+	}
+
+	fee := amount * model.BankCommission
+	return math.Round(fee*100) / 100
+}
+
 func (s *ExchangeService) toRSD(amount float64, currency model.CurrencyCode, rates map[model.CurrencyCode]model.ExchangeRate) (float64, error) {
 	if currency == model.RSD {
 		return amount, nil
@@ -136,7 +146,7 @@ func (s *ExchangeService) toRSD(amount float64, currency model.CurrencyCode, rat
 		return 0, errors.ServiceUnavailableErr(nil)
 	}
 
-	return amount * rate.SellRate, nil
+	return amount * rate.BuyRate, nil
 }
 
 func (s *ExchangeService) fromRSD(amount float64, currency model.CurrencyCode, rates map[model.CurrencyCode]model.ExchangeRate) (float64, error) {
@@ -149,5 +159,5 @@ func (s *ExchangeService) fromRSD(amount float64, currency model.CurrencyCode, r
 		return 0, errors.ServiceUnavailableErr(nil)
 	}
 
-	return amount / rate.BuyRate, nil
+	return amount / rate.SellRate, nil
 }

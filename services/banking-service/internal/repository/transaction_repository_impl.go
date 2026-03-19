@@ -17,7 +17,8 @@ func NewTransactionRepository(db *gorm.DB) TransactionRepository {
 }
 
 func (r *transactionRepository) Create(ctx context.Context, transaction *model.Transaction) error {
-	return r.db.WithContext(ctx).Create(transaction).Error
+	currentDB := db.DBFromContext(ctx, r.db)
+	return currentDB.WithContext(ctx).Create(transaction).Error
 }
 
 func (r *transactionRepository) GetByID(ctx context.Context, id uint) (*model.Transaction, error) {

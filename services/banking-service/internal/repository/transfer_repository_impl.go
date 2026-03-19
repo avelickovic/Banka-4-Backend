@@ -2,8 +2,8 @@ package repository
 
 import (
 	"banking-service/internal/model"
+	"common/pkg/db"
 	"context"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -16,47 +16,37 @@ func NewTransferRepository(db *gorm.DB) TransferRepository {
 	return &transferRepository{db: db}
 }
 
-// CreateTransfer kreira zapis transfera
-// TODO: Kada bude Transaction tabela, koristiti je za zapis
-func (r *transferRepository) CreateTransfer(ctx context.Context, transfer model.Transfer) error {
-	// TODO: Implementirati čuvanje u Transaction tabelu
-	// Za sada samo logovanje
-	return nil
+func (r *transferRepository) Create(ctx context.Context, transfer *model.Transfer) error {
+	currentDB := db.DBFromContext(ctx, r.db)
+	return currentDB.WithContext(ctx).Create(transfer).Error
 }
 
-// GetTransferHistory vraća istoriju transfera za račun
-// TODO: Kada bude Transaction tabela, čitati odatle sa filteriranjem po type='TRANSFER'
-func (r *transferRepository) GetTransferHistory(ctx context.Context, accountNum string, status string, startDate, endDate string, page, pageSize int) ([]TransferHistory, int64, error) {
-	var transfers []TransferHistory
-	var total int64
+func (r *transferRepository) ListByClientID(ctx context.Context, clientID uint, page, pageSize int) ([]model.Transfer, int64, error) {
+	currentDB := db.DBFromContext(ctx, r.db)
 
-	query := r.db.WithContext(ctx)
+	var (
+		transfers []model.Transfer
+		total     int64
+	)
 
-	// TODO: Filtriranje na osnovu Transaction tabele
-	// WHERE type = 'TRANSFER' AND (from_account = ? OR to_account = ?)
+	baseQuery := currentDB.WithContext(ctx).
+		Model(&model.Transfer{}).
+		Joins("JOIN transactions ON transactions.transaction_id = transfers.transaction_id").
+		Joins("JOIN accounts payer_accounts ON payer_accounts.account_number = transactions.payer_account_number").
+		Where("payer_accounts.client_id = ?", clientID)
 
-	if status != "" {
-		// TODO: status filtriranje iz Transaction tabele
-	}
-
-	if startDate != "" {
-		if t, err := time.Parse(time.RFC3339, startDate); err == nil {
-			query = query.Where("created_at >= ?", t)
-		}
-	}
-
-	if endDate != "" {
-		if t, err := time.Parse(time.RFC3339, endDate); err == nil {
-			query = query.Where("created_at <= ?", t)
-		}
-	}
-
-	if err := query.Model(&TransferHistory{}).Count(&total).Error; err != nil {
+	if err := baseQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	offset := (page - 1) * pageSize
-	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&transfers).Error; err != nil {
+
+	if err := baseQuery.
+		Preload("Transaction").
+		Order("transactions.created_at DESC, transactions.transaction_id DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&transfers).Error; err != nil {
 		return nil, 0, err
 	}
 

@@ -5,6 +5,7 @@ import (
 	"banking-service/internal/service"
 	"common/pkg/errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,77 +19,77 @@ func NewTransferHandler(service *service.TransferService) *TransferHandler {
 }
 
 // ExecuteTransfer godoc
-// @Summary Execute a transfer between accounts
-// @Description Transfers funds between two accounts of the same client. Same currency transfers are direct, different currencies use Exchange Office with 0-1% commission.
+// @Summary Execute an internal transfer
+// @Description Executes transfer between two authenticated-client accounts and persists transaction and transfer records atomically.
 // @Tags transfers
 // @Accept json
 // @Produce json
-// @Param request body dto.CreateTransferRequest true "Transfer details"
+// @Param request body dto.TransferRequest true "Transfer details"
 // @Success 201 {object} dto.TransferResponse
 // @Failure 400 {object} errors.AppError
-// @Failure 422 {object} errors.AppError
+// @Failure 401 {object} errors.AppError
+// @Failure 403 {object} errors.AppError
+// @Failure 404 {object} errors.AppError
 // @Failure 500 {object} errors.AppError
 // @Security BearerAuth
 // @Router /api/transfers [post]
 func (h *TransferHandler) ExecuteTransfer(c *gin.Context) {
-	var req dto.CreateTransferRequest
+	var req dto.TransferRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(errors.BadRequestErr(err.Error()))
 		return
 	}
 
-	transfer, err := h.service.ExecuteTransfer(c.Request.Context(), req)
+	response, err := h.service.ExecuteTransfer(c.Request.Context(), req)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, transfer)
+	c.JSON(http.StatusCreated, response)
 }
 
 // GetTransferHistory godoc
-// @Summary Get transfer history
-// @Description Retrieves client's transfer history with optional filtering by status and date range
+// @Summary Get client transfer history
+// @Description Returns transfer history for a client, newest first. Supports pagination.
 // @Tags transfers
 // @Produce json
-// @Param account_num query string false "Filter by account number"
-// @Param status query string false "Filter by status (Pending, Completed, Failed)"
-// @Param start_date query string false "Filter from date (RFC3339 format)"
-// @Param end_date query string false "Filter to date (RFC3339 format)"
+// @Param clientId path int true "Client ID"
 // @Param page query int false "Page number" minimum(1)
 // @Param page_size query int false "Page size" minimum(1) maximum(100)
 // @Success 200 {object} dto.ListTransfersResponse
 // @Failure 400 {object} errors.AppError
 // @Failure 401 {object} errors.AppError
+// @Failure 403 {object} errors.AppError
+// @Failure 500 {object} errors.AppError
 // @Security BearerAuth
-// @Router /api/transfers [get]
+// @Router /api/clients/{clientId}/transfers [get]
 func (h *TransferHandler) GetTransferHistory(c *gin.Context) {
+	clientID, err := parseClientID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
 	var query dto.ListTransfersQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
 		c.Error(errors.BadRequestErr(err.Error()))
 		return
 	}
 
-	if query.Page == 0 {
-		query.Page = 1
-	}
-	if query.PageSize == 0 {
-		query.PageSize = 10
-	}
-
-	result, err := h.service.GetTransferHistory(
-		c.Request.Context(),
-		query.AccountNum,
-		query.Status,
-		query.StartDate,
-		query.EndDate,
-		query.Page,
-		query.PageSize,
-	)
+	response, err := h.service.GetTransferHistory(c.Request.Context(), clientID, query.Page, query.PageSize)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, response)
+}
+
+func parseClientID(c *gin.Context) (uint, error) {
+	value, err := strconv.ParseUint(c.Param("clientId"), 10, 64)
+	if err != nil {
+		return 0, errors.BadRequestErr("invalid client id")
+	}
+	return uint(value), nil
 }

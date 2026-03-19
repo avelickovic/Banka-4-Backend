@@ -80,6 +80,14 @@ func (f *fakeTransactionRepo) GetByID(_ context.Context, _ uint) (*model.Transac
 	return f.returnedTx, f.returnedTxErr
 }
 
+func (f *fakeTransactionRepo) GetByPayerAccountNumber(_ context.Context, _ string) ([]*model.Transaction, error) {
+	return nil, nil
+}
+
+func (f *fakeTransactionRepo) GetByRecipientAccountNumber(_ context.Context, _ string) ([]*model.Transaction, error) {
+	return nil, nil
+}
+
 // ── Fake Payment Account Repo ──────────────────────────────────────
 
 type fakePaymentAccountRepo struct {
@@ -156,6 +164,10 @@ func (f *fakeExchangeService) Convert(ctx context.Context, amount float64, from,
 		return 0, f.err
 	}
 	return amount * f.rate, nil
+}
+
+func (f *fakeExchangeService) CalculateFee(amount float64) float64 {
+	return amount * model.BankCommission
 }
 
 type fakeMobileSecretClient struct {
