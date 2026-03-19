@@ -16,6 +16,10 @@ func NewGormTransactionManager(db *gorm.DB) TransactionManager {
 }
 
 func (m *GormTransactionManager) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	if existingTx, ok := ctx.Value(db.TxContextKey{}).(*gorm.DB); ok && existingTx != nil {
+		return fn(ctx)
+	}
+
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txCtx := context.WithValue(ctx, db.TxContextKey{}, tx)
 		return fn(txCtx)

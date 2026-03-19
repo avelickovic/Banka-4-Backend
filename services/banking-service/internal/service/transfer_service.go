@@ -27,11 +27,12 @@ type transferCalculation struct {
 }
 
 type TransferService struct {
-	transferRepo    repository.TransferRepository
-	transactionRepo repository.TransactionRepository
-	accountRepo     repository.AccountRepository
-	exchangeService CurrencyConverter
-	txManager       repository.TransactionManager
+	transferRepo         repository.TransferRepository
+	transactionRepo      repository.TransactionRepository
+	accountRepo          repository.AccountRepository
+	exchangeService      CurrencyConverter
+	txManager            repository.TransactionManager
+	transactionProcessor *TransactionProcessor
 }
 
 func NewTransferService(
@@ -40,13 +41,15 @@ func NewTransferService(
 	accountRepo repository.AccountRepository,
 	exchangeService CurrencyConverter,
 	txManager repository.TransactionManager,
+	transactionProcessor *TransactionProcessor,
 ) *TransferService {
 	return &TransferService{
-		transferRepo:    transferRepo,
-		transactionRepo: transactionRepo,
-		accountRepo:     accountRepo,
-		exchangeService: exchangeService,
-		txManager:       txManager,
+		transferRepo:         transferRepo,
+		transactionRepo:      transactionRepo,
+		accountRepo:          accountRepo,
+		exchangeService:      exchangeService,
+		txManager:            txManager,
+		transactionProcessor: transactionProcessor,
 	}
 }
 
@@ -67,25 +70,14 @@ func (s *TransferService) ExecuteTransfer(ctx context.Context, req dto.TransferR
 		transaction := &model.Transaction{
 			PayerAccountNumber:     calculation.fromAccount.AccountNumber,
 			RecipientAccountNumber: calculation.toAccount.AccountNumber,
-			StartAmount:            calculation.initial,
+			StartAmount:            calculation.debit,
 			StartCurrencyCode:      calculation.fromAccount.Currency.Code,
 			EndAmount:              calculation.final,
 			EndCurrencyCode:        calculation.toAccount.Currency.Code,
-			Status:                 model.TransactionCompleted,
+			Status:                 model.TransactionProcessing,
 		}
 
 		if err := s.transactionRepo.Create(txCtx, transaction); err != nil {
-			return errors.InternalErr(err)
-		}
-
-		model.UpdateBalances(calculation.fromAccount, -calculation.debit)
-		model.UpdateBalances(calculation.toAccount, calculation.final)
-
-		if err := s.accountRepo.UpdateBalance(txCtx, calculation.fromAccount); err != nil {
-			return errors.InternalErr(err)
-		}
-
-		if err := s.accountRepo.UpdateBalance(txCtx, calculation.toAccount); err != nil {
 			return errors.InternalErr(err)
 		}
 
@@ -98,6 +90,10 @@ func (s *TransferService) ExecuteTransfer(ctx context.Context, req dto.TransferR
 
 		if err := s.transferRepo.Create(txCtx, transfer); err != nil {
 			return errors.InternalErr(err)
+		}
+
+		if err := s.transactionProcessor.Process(txCtx, transaction.TransactionID); err != nil {
+			return err
 		}
 
 		createdTransfer = transfer

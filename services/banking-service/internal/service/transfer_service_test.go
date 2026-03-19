@@ -36,6 +36,69 @@ func (r *fakeTransferAccountRepo) FindByAccountNumber(_ context.Context, account
 	return &copy, nil
 }
 
+func (r *fakeTransferAccountRepo) GetByAccountNumber(ctx context.Context, accountNumber string) (*model.Account, error) {
+	return r.FindByAccountNumber(ctx, accountNumber)
+}
+
+func (r *fakeTransferAccountRepo) Update(_ context.Context, account *model.Account) error {
+	r.accounts[account.AccountNumber] = *account
+	return nil
+}
+
+func (r *fakeTransferAccountRepo) FindAllByClientID(_ context.Context, clientID uint) ([]model.Account, error) {
+	result := make([]model.Account, 0)
+	for _, account := range r.accounts {
+		if account.ClientID == clientID {
+			result = append(result, account)
+		}
+	}
+	return result, nil
+}
+
+func (r *fakeTransferAccountRepo) FindByAccountNumberAndClientID(_ context.Context, accountNumber string, clientID uint) (*model.Account, error) {
+	account, err := r.FindByAccountNumber(context.Background(), accountNumber)
+	if err != nil || account == nil {
+		return account, err
+	}
+	if account.ClientID != clientID {
+		return nil, nil
+	}
+	return account, nil
+}
+
+func (r *fakeTransferAccountRepo) UpdateName(_ context.Context, accountNumber string, name string) error {
+	account, exists := r.accounts[accountNumber]
+	if !exists {
+		return nil
+	}
+	account.Name = name
+	r.accounts[accountNumber] = account
+	return nil
+}
+
+func (r *fakeTransferAccountRepo) UpdateLimits(_ context.Context, accountNumber string, daily float64, monthly float64) error {
+	account, exists := r.accounts[accountNumber]
+	if !exists {
+		return nil
+	}
+	account.DailyLimit = daily
+	account.MonthlyLimit = monthly
+	r.accounts[accountNumber] = account
+	return nil
+}
+
+func (r *fakeTransferAccountRepo) NameExistsForClient(_ context.Context, clientID uint, name string, excludeNumber string) (bool, error) {
+	for accountNumber, account := range r.accounts {
+		if account.ClientID != clientID || accountNumber == excludeNumber {
+			continue
+		}
+		if account.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *fakeTransferAccountRepo) UpdateBalance(_ context.Context, account *model.Account) error {
 	if err := r.updateErrByNumber[account.AccountNumber]; err != nil {
 		return err
@@ -486,6 +549,11 @@ func newTransferServiceForTests(accounts []model.Account, converter *fakeTransfe
 		accounts:          map[string]model.Account{},
 		updateErrByNumber: map[string]error{},
 	}
+
+	for currency, accountNumber := range BankAccounts {
+		accountRepo.accounts[accountNumber] = testAccount(accountNumber, 0, currency, 1_000_000_000, "Active")
+	}
+
 	for _, account := range accounts {
 		accountRepo.accounts[account.AccountNumber] = account
 	}
@@ -502,7 +570,8 @@ func newTransferServiceForTests(accounts []model.Account, converter *fakeTransfe
 		transferRepo:    transferRepo,
 	}
 
-	service := NewTransferService(transferRepo, transactionRepo, accountRepo, converter, txManager)
+	transactionProcessor := NewTransactionProcessor(accountRepo, transactionRepo, txManager)
+	service := NewTransferService(transferRepo, transactionRepo, accountRepo, converter, txManager, transactionProcessor)
 	return &transferTestEnv{
 		service:         service,
 		accountRepo:     accountRepo,
@@ -517,6 +586,8 @@ func testAccount(number string, clientID uint, currency model.CurrencyCode, bala
 		ClientID:         clientID,
 		Balance:          balance,
 		AvailableBalance: balance,
+		DailyLimit:       1_000_000_000,
+		MonthlyLimit:     1_000_000_000,
 		Status:           status,
 		Currency:         model.Currency{Code: currency},
 	}
