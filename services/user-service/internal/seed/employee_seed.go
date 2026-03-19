@@ -130,7 +130,7 @@ func Run(db *gorm.DB) error {
 		if err := db.Where("email = ?", c.Email).First(&existingIdentity).Error; err == nil {
 			continue
 		}
-		
+
 		hash, err := bcrypt.GenerateFromPassword([]byte(c.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return err

@@ -28,6 +28,7 @@ func NewServer(
 	healthHandler *handler.HealthHandler,
 	accountHandler *handler.AccountHandler,
 	companyHandler *handler.CompanyHandler,
+	payeeHandler *handler.PayeeHandler,
 	exchangeHandler *handler.ExchangeHandler,
 	paymentHandler *handler.PaymentHandler,
 	cardHandler *handler.CardHandler,
@@ -38,7 +39,7 @@ func NewServer(
 	r := gin.New()
 
 	InitRouter(r, cfg)
-	SetupRoutes(r, healthHandler, accountHandler, companyHandler, exchangeHandler, paymentHandler,  cardHandler, loanHandler, verifier, permissions)
+	SetupRoutes(r, healthHandler, accountHandler, companyHandler, payeeHandler, exchangeHandler, paymentHandler,  cardHandler, loanHandler, verifier, permissions)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -71,6 +72,7 @@ func SetupRoutes(
 	healthHandler *handler.HealthHandler,
 	accountHandler *handler.AccountHandler,
 	companyHandler *handler.CompanyHandler,
+	payeeHandler *handler.PayeeHandler,
 	exchangeHandler *handler.ExchangeHandler,
 	paymentHandler *handler.PaymentHandler,
 	cardHandler *handler.CardHandler,
@@ -109,6 +111,15 @@ func SetupRoutes(
 			companies.POST("", companyHandler.Create)
 		}
 
+		payees := api.Group("/payees")
+		payees.Use(auth.Middleware(verifier, permissions))
+		{
+			payees.GET("", payeeHandler.GetAll)
+			payees.POST("", payeeHandler.Create)
+			payees.PATCH("/:id", payeeHandler.Update)
+			payees.DELETE("/:id", payeeHandler.Delete)
+		}
+
 		cards := api.Group("/cards")
 		cards.Use(auth.Middleware(verifier, permissions))
 		{
@@ -128,6 +139,9 @@ func SetupRoutes(
 		payments := api.Group("/payments")
 		payments.Use(auth.Middleware(verifier, permissions))
 		{
+			payments.GET("", paymentHandler.GetPayments)
+			payments.GET("/:id", paymentHandler.GetPaymentByID)
+			payments.GET("/:id/receipt", paymentHandler.GetReceipt)
 			payments.POST("", paymentHandler.CreatePayment)
 			payments.POST("/:id/verify", paymentHandler.VerifyPayment)
 		}
