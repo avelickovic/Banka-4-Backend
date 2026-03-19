@@ -31,6 +31,7 @@ func NewClientHandler(service *service.ClientService) *ClientHandler {
 // @Failure 400 {object} errors.AppError
 // @Failure 409 {object} errors.AppError
 // @Failure 503 {object} errors.AppError
+// @Security BearerAuth
 // @Router /api/clients/register [post]
 func (h *ClientHandler) Register(c *gin.Context) {
 	var req dto.CreateClientRequest
@@ -48,6 +49,22 @@ func (h *ClientHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Registration successful. Please check your email to activate your account."})
 }
 
+// ListClients godoc
+// @Summary List all clients
+// @Description Returns a paginated list of clients. Supports filtering by email, first name, and last name. Requires ClientView permission.
+// @Tags clients
+// @Produce json
+// @Param email query string false "Filter by email"
+// @Param first_name query string false "Filter by first name"
+// @Param last_name query string false "Filter by last name"
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Success 200 {object} object
+// @Failure 400 {object} errors.AppError
+// @Failure 401 {object} errors.AppError
+// @Failure 403 {object} errors.AppError
+// @Security BearerAuth
+// @Router /api/clients [get]
 func (h *ClientHandler) ListClients(c *gin.Context) {
 	var req dto.ListClientsQuery
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -74,6 +91,21 @@ func (h *ClientHandler) ListClients(c *gin.Context) {
 	})
 }
 
+// UpdateClient godoc
+// @Summary Update a client
+// @Description Updates client details by ID. Requires ClientUpdate permission.
+// @Tags clients
+// @Accept json
+// @Produce json
+// @Param id path int true "Client ID"
+// @Param client body dto.UpdateClientRequest true "Fields to update"
+// @Success 200 {object} object
+// @Failure 400 {object} errors.AppError
+// @Failure 401 {object} errors.AppError
+// @Failure 403 {object} errors.AppError
+// @Failure 404 {object} errors.AppError
+// @Security BearerAuth
+// @Router /api/clients/{id} [patch]
 func (h *ClientHandler) UpdateClient(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {

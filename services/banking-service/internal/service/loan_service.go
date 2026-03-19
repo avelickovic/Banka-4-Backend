@@ -150,6 +150,7 @@ func (s *LoanService) GetLoanDetails(ctx context.Context, clientID uint, loanID 
 		Installments:    installments,
 	}, nil
 }
+
 func (s *LoanService) GetLoanRequests(ctx context.Context, query *dto.ListLoanRequestsQuery) ([]dto.LoanRequestResponse, int64, error) {
 	requests, total, err := s.loanRepo.FindAll(ctx, query)
 	if err != nil {
@@ -172,15 +173,17 @@ func (s *LoanService) GetLoanRequests(ctx context.Context, query *dto.ListLoanRe
 
 	return response, total, nil
 }
+
 func (s *LoanService) ApproveLoanRequest(ctx context.Context, id uint) error {
 	request, err := s.loanRepo.FindByID(ctx, id)
 	if err != nil {
 		return errors.InternalErr(err)
 	}
+
 	if request == nil {
 		return errors.NotFoundErr("loan request not found")
 	}
-	//obradjujemo samo zahteve koji nisu obradjeni
+
 	if request.Status != model.LoanRequestPending {
 		return errors.BadRequestErr("loan request is not pending")
 	}
@@ -188,15 +191,17 @@ func (s *LoanService) ApproveLoanRequest(ctx context.Context, id uint) error {
 	request.Status = model.LoanRequestApproved
 	return s.loanRepo.Update(ctx, request)
 }
+
 func (s *LoanService) RejectLoanRequest(ctx context.Context, id uint) error {
 	request, err := s.loanRepo.FindByID(ctx, id)
 	if err != nil {
 		return errors.InternalErr(err)
 	}
+
 	if request == nil {
 		return errors.NotFoundErr("loan request not found")
 	}
-	//obradjujemo samo zahteve koji nisu obradjeni
+
 	if request.Status != model.LoanRequestPending {
 		return errors.BadRequestErr("loan request is not pending")
 	}

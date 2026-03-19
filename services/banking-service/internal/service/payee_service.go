@@ -19,11 +19,11 @@ func NewPayeeService(repo repository.PayeeRepository) *PayeeService {
 
 func (s *PayeeService) GetAll(ctx context.Context) ([]model.Payee, error) {
 	ac := auth.GetAuthFromContext(ctx)
-
 	payees, err := s.repo.FindAllByClientID(ctx, *ac.ClientID)
 	if err != nil {
 		return nil, errors.InternalErr(err)
 	}
+
 	return payees, nil
 }
 
@@ -45,14 +45,15 @@ func (s *PayeeService) Create(ctx context.Context, req dto.CreatePayeeRequest) (
 
 func (s *PayeeService) Update(ctx context.Context, id uint, req dto.UpdatePayeeRequest) (*model.Payee, error) {
 	ac := auth.GetAuthFromContext(ctx)
-
 	payee, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, errors.InternalErr(err)
 	}
+
 	if payee == nil {
 		return nil, errors.NotFoundErr("payee not found")
 	}
+
 	if payee.ClientID != *ac.ClientID {
 		return nil, errors.ForbiddenErr("not your payee")
 	}
@@ -60,6 +61,7 @@ func (s *PayeeService) Update(ctx context.Context, id uint, req dto.UpdatePayeeR
 	if req.Name != "" {
 		payee.Name = req.Name
 	}
+
 	if req.AccountNumber != "" {
 		payee.AccountNumber = req.AccountNumber
 	}
@@ -73,14 +75,15 @@ func (s *PayeeService) Update(ctx context.Context, id uint, req dto.UpdatePayeeR
 
 func (s *PayeeService) Delete(ctx context.Context, id uint) error {
 	ac := auth.GetAuthFromContext(ctx)
-
 	payee, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return errors.InternalErr(err)
 	}
+
 	if payee == nil {
 		return errors.NotFoundErr("payee not found")
 	}
+
 	if payee.ClientID != *ac.ClientID {
 		return errors.ForbiddenErr("not your payee")
 	}

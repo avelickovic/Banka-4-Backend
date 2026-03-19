@@ -16,53 +16,85 @@ const docTemplate = `{
     "basePath": "{{.BasePath}}",
     "paths": {
         "/api/accounts": {
-        "/api/accounts/{accountId}/cards": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns all active accounts belonging to the authenticated client",
-                "description": "Returns cards for the specified account. Clients can access only their own accounts, while employees can access any account.",
+                "description": "Returns a paginated list of all accounts. Employee access only. Supports filtering by client, account type, kind, status and currency.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "accounts"
                 ],
-                "summary": "List client accounts",
-                    "cards"
-                ],
-                "summary": "List cards for an account",
+                "summary": "List all accounts",
                 "parameters": [
                     {
+                        "type": "integer",
+                        "description": "Filter by client ID",
+                        "name": "client_id",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
-                        "description": "Account number",
-                        "name": "accountId",
-                        "in": "path",
-                        "required": true
+                        "description": "Filter by account type",
+                        "name": "account_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by account kind",
+                        "name": "account_kind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by currency ID",
+                        "name": "currency_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/banking-service_internal_dto.AccountSummaryResponse"
-                            }
+                            "type": "object"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/errors.AppError"
-                            "$ref": "#/definitions/dto.AccountCardsResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/errors.AppError"
                         }
@@ -93,7 +125,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.CreateAccountRequest"
+                            "$ref": "#/definitions/dto.CreateAccountRequest"
                         }
                     }
                 ],
@@ -101,14 +133,11 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.AccountResponse"
+                            "$ref": "#/definitions/dto.AccountResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
-                    },
-                    "403": {
-                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/errors.AppError"
                         }
@@ -128,12 +157,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/accounts/{accountNumber}": {
-            "get": {
-                    }
-                }
-            }
-        },
         "/api/cards/request": {
             "post": {
                 "security": [
@@ -141,7 +164,6 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns full details for a specific account owned by the authenticated client",
                 "description": "Client requests a new card for their account. The request is confirmed later using a confirmation code.",
                 "consumes": [
                     "application/json"
@@ -150,16 +172,6 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
-                ],
-                "summary": "Get account details",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Account number",
-                        "name": "accountNumber",
-                        "in": "path",
-                        "required": true
                     "cards"
                 ],
                 "summary": "Request a new card",
@@ -178,7 +190,6 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.AccountResponse"
                             "$ref": "#/definitions/dto.MessageResponse"
                         }
                     },
@@ -205,12 +216,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/errors.AppError"
                         }
-                    }
-                }
-            }
-        },
-        "/api/accounts/{accountNumber}/limits": {
-            "put": {
                     },
                     "409": {
                         "description": "Conflict",
@@ -228,7 +233,6 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Confirms a pending limit change request using the verification code from the mobile app",
                 "description": "Confirms a pending card request using the confirmation code and creates the card.",
                 "consumes": [
                     "application/json"
@@ -237,19 +241,6 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
-                ],
-                "summary": "Confirm account limit change",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Account number",
-                        "name": "accountNumber",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Verification code, you can use 1234 for testing but still needs request to be made first",
                     "cards"
                 ],
                 "summary": "Confirm a card request",
@@ -260,14 +251,11 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.ConfirmLimitsChangeRequest"
                             "$ref": "#/definitions/dto.ConfirmCardRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK"
                     "201": {
                         "description": "Created",
                         "schema": {
@@ -297,12 +285,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/errors.AppError"
                         }
-                    }
-                }
-            }
-        },
-        "/api/accounts/{accountNumber}/limits/request": {
-            "post": {
                     },
                     "409": {
                         "description": "Conflict",
@@ -320,34 +302,11 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Initiates a limit change request for an account. Sends a verification code for confirmation via mobile app, temporarily returned in body as code.",
-                "consumes": [
-                    "application/json"
-                ],
                 "description": "Blocks a card. Clients can block only their own cards, while employees can block any card.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
-                ],
-                "summary": "Request account limit change",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Account number",
-                        "name": "accountNumber",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "New daily and monthly limits",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.RequestLimitsChangeRequest"
-                        }
                     "cards"
                 ],
                 "summary": "Block a card",
@@ -364,7 +323,6 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.RequestLimitsChangeResponse"
                             "$ref": "#/definitions/dto.CardResponse"
                         }
                     },
@@ -395,7 +353,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/accounts/{accountNumber}/name": {
         "/api/cards/{cardId}/deactivate": {
             "put": {
                 "security": [
@@ -403,34 +360,11 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates the display name of an account owned by the authenticated client",
-                "consumes": [
-                    "application/json"
-                ],
                 "description": "Deactivates a card permanently. Only employees can perform this action.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
-                ],
-                "summary": "Update account name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Account number",
-                        "name": "accountNumber",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "New account name",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.UpdateAccountNameRequest"
-                        }
                     "cards"
                 ],
                 "summary": "Deactivate a card",
@@ -445,7 +379,6 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/dto.CardResponse"
@@ -478,8 +411,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/accounts/{accountNumber}/payments": {
-            "get": {
         "/api/cards/{cardId}/unblock": {
             "put": {
                 "security": [
@@ -487,8 +418,328 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a paginated list of payments for an account, filterable by status, date range, and amount. Only the account owner can access this.",
                 "description": "Unblocks a blocked card. Only employees can perform this action.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cards"
+                ],
+                "summary": "Unblock a card",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Card ID",
+                        "name": "cardId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/accounts/{accountNumber}/cards": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns cards for the specified account. Clients can access only their own accounts, while employees can access any account.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cards"
+                ],
+                "summary": "List cards for an account",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account number",
+                        "name": "accountNumber",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AccountCardsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/accounts/{accountNumber}/limits": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Confirms a pending limit change request using the verification code from the mobile app",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Confirm account limit change",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account number",
+                        "name": "accountNumber",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Verification code generated in mobile app",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConfirmLimitsChangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/accounts/{accountNumber}/limits/request": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Initiates a limit change request for an account. Confirmation uses TOTP code generated in the mobile app.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Request account limit change",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account number",
+                        "name": "accountNumber",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New daily and monthly limits",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestLimitsChangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/accounts/{accountNumber}/name": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the display name of an account owned by the authenticated client",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Update account name",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account number",
+                        "name": "accountNumber",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New account name",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateAccountNameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/accounts/{accountNumber}/payments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a paginated list of payments for an account, filterable by status, date range, and amount. Clients can access only their own accounts, employees can access any.",
                 "produces": [
                     "application/json"
                 ],
@@ -497,6 +748,13 @@ const docTemplate = `{
                 ],
                 "summary": "List account payments",
                 "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "Account number",
@@ -548,14 +806,206 @@ const docTemplate = `{
                         "description": "Page size",
                         "name": "page_size",
                         "in": "query"
-                    "cards"
+                    }
                 ],
-                "summary": "Unblock a card",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListPaymentsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/loans": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a list of loans for a client. Supports sorting by amount.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "loans"
+                ],
+                "summary": "List client loans",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Card ID",
-                        "name": "cardId",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort by amount: 'asc' or 'desc'",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.LoanResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/loans/request": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Client submits a loan request. Validates repayment period and currency, and calculates the monthly installment based on bank margin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "loans"
+                ],
+                "summary": "Submit a loan request",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Loan request data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateLoanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateLoanResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/loans/{loanId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns detailed loan information including the repayment schedule.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "loans"
+                ],
+                "summary": "Get loan details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Loan ID",
+                        "name": "loanId",
                         "in": "path",
                         "required": true
                     }
@@ -564,8 +1014,237 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/banking-service_internal_dto.ListPaymentsResponse"
-                            "$ref": "#/definitions/dto.CardResponse"
+                            "$ref": "#/definitions/dto.LoanDetailsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/payments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a paginated list of all payments for a client. Supports filtering by status, date range, and amount.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "List all client payments",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status (processing, completed, rejected)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter from date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter to date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Minimum amount filter",
+                        "name": "min_amount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Maximum amount filter",
+                        "name": "max_amount",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListPaymentsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new payment from the request body. Only the authenticated client can create payments.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Create a new payment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Payment data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreatePaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreatePaymentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/payments/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns payment details by ID. Clients can only access their own payments, employees can access any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Get payment details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Payment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PaymentResponse"
                         }
                     },
                     "400": {
@@ -595,6 +1274,295 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/clients/{clientId}/payments/{id}/receipt": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generates and returns a PDF receipt for a completed payment.",
+                "produces": [
+                    "application/pdf"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Download payment receipt",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Payment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/payments/{id}/verify": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Confirms a payment using a verification code. Only the client who created the payment can verify it.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Verify a payment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Payment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Verification code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.VerifyPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.VerifyPaymentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clients/{clientId}/transfers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns transfer history for a client, newest first. Supports pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transfers"
+                ],
+                "summary": "Get client transfer history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListTransfersResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Executes transfer between two authenticated-client accounts and persists transaction and transfer records atomically.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transfers"
+                ],
+                "summary": "Execute an internal transfer",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transfer details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.TransferRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.TransferResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/health": {
             "get": {
                 "description": "Returns service health status",
@@ -617,17 +1585,203 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/loan-requests": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a paginated list of all loan requests. Employee access only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "loan-requests"
+                ],
+                "summary": "List loan requests",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/loan-requests/{id}/approve": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approves a pending loan request. Employee access only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "loan-requests"
+                ],
+                "summary": "Approve a loan request",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan request ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/loan-requests/{id}/reject": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rejects a pending loan request. Employee access only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "loan-requests"
+                ],
+                "summary": "Reject a loan request",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Loan request ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
-        "banking-service_internal_dto.AccountResponse": {
-            "type": "object",
-            "properties": {
-                "account_kind": {
         "dto.AccountCardsResponse": {
             "type": "object",
             "properties": {
                 "account_name": {
+                    "type": "string"
+                },
+                "account_number": {
+                    "type": "string"
+                },
+                "cards": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CardResponse"
+                    }
+                }
+            }
+        },
+        "dto.AccountResponse": {
+            "type": "object",
+            "properties": {
+                "account_kind": {
                     "type": "string"
                 },
                 "account_number": {
@@ -652,7 +1806,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "currency": {
-                    "$ref": "#/definitions/banking-service_internal_model.CurrencyCode"
+                    "$ref": "#/definitions/model.CurrencyCode"
                 },
                 "daily_limit": {
                     "type": "number"
@@ -689,50 +1843,6 @@ const docTemplate = `{
                 }
             }
         },
-        "banking-service_internal_dto.AccountSummaryResponse": {
-            "type": "object",
-            "properties": {
-                "account_kind": {
-                    "type": "string"
-                },
-                "account_number": {
-                    "type": "string"
-                },
-                "account_type": {
-                    "type": "string"
-                },
-                "available_balance": {
-                    "type": "number"
-                },
-                "balance": {
-                    "type": "number"
-                },
-                "currency": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "reserved_funds": {
-                    "type": "number"
-                }
-            }
-        },
-        "banking-service_internal_dto.ConfirmLimitsChangeRequest": {
-            "type": "object",
-            "required": [
-                "code"
-            ],
-            "properties": {
-                "code": {
-                "cards": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.CardResponse"
-                    }
-                }
-            }
-        },
         "dto.AuthorizedPersonRequest": {
             "type": "object",
             "required": [
@@ -766,114 +1876,6 @@ const docTemplate = `{
                 }
             }
         },
-        "banking-service_internal_dto.CreateAccountRequest": {
-            "type": "object",
-            "required": [
-                "account_kind",
-                "account_type",
-                "client_id",
-                "employee_id",
-                "expires_at",
-                "name"
-            ],
-            "properties": {
-                "account_kind": {
-                    "$ref": "#/definitions/banking-service_internal_model.AccountKind"
-                },
-                "account_type": {
-                    "$ref": "#/definitions/banking-service_internal_model.AccountType"
-                },
-                "client_id": {
-                    "type": "integer"
-                },
-                "company_id": {
-                    "type": "integer"
-                },
-                "create_card": {
-                    "type": "boolean"
-                },
-                "currency_code": {
-                    "description": "required if AccountKind=Foreign",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/banking-service_internal_model.CurrencyCode"
-                        }
-                    ]
-                },
-                "employee_id": {
-                    "type": "integer"
-                },
-                "expires_at": {
-                    "type": "string"
-                },
-                "initial_balance": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "name": {
-                    "type": "string"
-                },
-                "subtype": {
-                    "description": "required if AccountKind=Current",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/banking-service_internal_model.Subtype"
-                        }
-                    ]
-                }
-            }
-        },
-        "banking-service_internal_dto.ListPaymentsResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/banking-service_internal_dto.PaymentSummaryResponse"
-                    }
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "page_size": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "total_pages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "banking-service_internal_dto.PaymentSummaryResponse": {
-            "type": "object",
-            "properties": {
-                "amount": {
-                    "type": "number"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "currency": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "payer_account": {
-                    "type": "string"
-                },
-                "payment_code": {
-                    "type": "string"
-                },
-                "purpose": {
-                    "type": "string"
-                },
-                "recipient_account": {
-                    "type": "string"
-                },
-                "recipient_name": {
         "dto.CardResponse": {
             "type": "object",
             "properties": {
@@ -912,25 +1914,6 @@ const docTemplate = `{
                 }
             }
         },
-        "banking-service_internal_dto.RequestLimitsChangeRequest": {
-            "type": "object",
-            "required": [
-                "daily_limit",
-                "monthly_limit"
-            ],
-            "properties": {
-                "daily_limit": {
-                    "type": "number"
-                },
-                "monthly_limit": {
-                    "type": "number"
-                }
-            }
-        },
-        "banking-service_internal_dto.RequestLimitsChangeResponse": {
-            "type": "object",
-            "properties": {
-                "code": {
         "dto.ConfirmCardRequest": {
             "type": "object",
             "required": [
@@ -946,6 +1929,274 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ConfirmLimitsChangeRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CreateAccountRequest": {
+            "type": "object",
+            "required": [
+                "account_kind",
+                "account_type",
+                "client_id",
+                "employee_id",
+                "expires_at",
+                "name"
+            ],
+            "properties": {
+                "account_kind": {
+                    "$ref": "#/definitions/model.AccountKind"
+                },
+                "account_type": {
+                    "$ref": "#/definitions/model.AccountType"
+                },
+                "client_id": {
+                    "type": "integer"
+                },
+                "company_id": {
+                    "type": "integer"
+                },
+                "create_card": {
+                    "type": "boolean"
+                },
+                "currency_code": {
+                    "description": "required if AccountKind=Foreign",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CurrencyCode"
+                        }
+                    ]
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "generate_card": {
+                    "type": "boolean"
+                },
+                "initial_balance": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "name": {
+                    "type": "string"
+                },
+                "subtype": {
+                    "description": "required if AccountKind=Current",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.Subtype"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.CreateLoanRequest": {
+            "type": "object",
+            "required": [
+                "account_number",
+                "amount",
+                "loan_type_id",
+                "repayment_period"
+            ],
+            "properties": {
+                "account_number": {
+                    "type": "string"
+                },
+                "amount": {
+                    "type": "number"
+                },
+                "loan_type_id": {
+                    "type": "integer"
+                },
+                "repayment_period": {
+                    "description": "Broj meseci",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.CreateLoanResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "monthly_installment": {
+                    "type": "number"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.LoanRequestStatus"
+                }
+            }
+        },
+        "dto.CreatePaymentRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "payer_account_number",
+                "recipient_account_number",
+                "recipient_name"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "payer_account_number": {
+                    "type": "string"
+                },
+                "payment_code": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "recipient_account_number": {
+                    "type": "string"
+                },
+                "recipient_name": {
+                    "type": "string"
+                },
+                "reference_number": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CreatePaymentResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.Installment": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "npr. \"PAID\", \"UPCOMING\"",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ListPaymentsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.PaymentSummaryResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ListTransfersResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TransferResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.LoanDetailsResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "$ref": "#/definitions/model.CurrencyCode"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "installments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.Installment"
+                    }
+                },
+                "interest_rate": {
+                    "type": "number"
+                },
+                "loan_type": {
+                    "type": "string"
+                },
+                "monthly_installment": {
+                    "type": "number"
+                },
+                "repayment_period": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.LoanRequestStatus"
+                }
+            }
+        },
+        "dto.LoanResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "$ref": "#/definitions/model.CurrencyCode"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "loan_type": {
+                    "type": "string"
+                },
+                "monthly_installment": {
+                    "type": "number"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.LoanRequestStatus"
+                }
+            }
+        },
         "dto.MessageResponse": {
             "type": "object",
             "properties": {
@@ -954,7 +2205,160 @@ const docTemplate = `{
                 }
             }
         },
-        "banking-service_internal_dto.UpdateAccountNameRequest": {
+        "dto.PaymentResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency_code": {
+                    "type": "string"
+                },
+                "payer_account_number": {
+                    "type": "string"
+                },
+                "payment_code": {
+                    "type": "string"
+                },
+                "payment_id": {
+                    "type": "integer"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "recipient_account_number": {
+                    "type": "string"
+                },
+                "recipient_name": {
+                    "type": "string"
+                },
+                "reference_number": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PaymentSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "payer_account": {
+                    "type": "string"
+                },
+                "payment_code": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "recipient_account": {
+                    "type": "string"
+                },
+                "recipient_name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RequestCardRequest": {
+            "type": "object",
+            "required": [
+                "account_number"
+            ],
+            "properties": {
+                "account_number": {
+                    "type": "string"
+                },
+                "authorized_person": {
+                    "$ref": "#/definitions/dto.AuthorizedPersonRequest"
+                }
+            }
+        },
+        "dto.RequestLimitsChangeRequest": {
+            "type": "object",
+            "required": [
+                "daily_limit",
+                "monthly_limit"
+            ],
+            "properties": {
+                "daily_limit": {
+                    "type": "number"
+                },
+                "monthly_limit": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.TransferRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "from_account",
+                "to_account"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "from_account": {
+                    "type": "string"
+                },
+                "to_account": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TransferResponse": {
+            "type": "object",
+            "properties": {
+                "commission": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "exchange_rate": {
+                    "type": "number"
+                },
+                "final_amount": {
+                    "type": "number"
+                },
+                "from_account_number": {
+                    "type": "string"
+                },
+                "initial_amount": {
+                    "type": "number"
+                },
+                "to_account_number": {
+                    "type": "string"
+                },
+                "transaction_id": {
+                    "type": "integer"
+                },
+                "transfer_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.UpdateAccountNameRequest": {
             "type": "object",
             "required": [
                 "name"
@@ -965,29 +2369,66 @@ const docTemplate = `{
                 }
             }
         },
-        "banking-service_internal_model.AccountKind": {
+        "dto.VerifyPaymentRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VerifyPaymentResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "errors.AppError": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.AccountKind": {
             "type": "string",
             "enum": [
                 "Current",
-                "Foreign"
+                "Foreign",
+                "Internal"
             ],
             "x-enum-varnames": [
                 "AccountKindCurrent",
-                "AccountKindForeign"
+                "AccountKindForeign",
+                "AccountKindInternal"
             ]
         },
-        "banking-service_internal_model.AccountType": {
+        "model.AccountType": {
             "type": "string",
             "enum": [
                 "Personal",
-                "Business"
+                "Business",
+                "Bank"
             ],
             "x-enum-varnames": [
                 "AccountTypePersonal",
-                "AccountTypeBusiness"
+                "AccountTypeBusiness",
+                "AccountTypeBank"
             ]
         },
-        "banking-service_internal_model.CurrencyCode": {
+        "model.CurrencyCode": {
             "type": "string",
             "enum": [
                 "EUR",
@@ -1010,7 +2451,20 @@ const docTemplate = `{
                 "RSD"
             ]
         },
-        "banking-service_internal_model.Subtype": {
+        "model.LoanRequestStatus": {
+            "type": "string",
+            "enum": [
+                "PENDING",
+                "APPROVED",
+                "REJECTED"
+            ],
+            "x-enum-varnames": [
+                "LoanRequestPending",
+                "LoanRequestApproved",
+                "LoanRequestRejected"
+            ]
+        },
+        "model.Subtype": {
             "type": "string",
             "enum": [
                 "Standard",
@@ -1034,34 +2488,6 @@ const docTemplate = `{
                 "SubtypeJointStock",
                 "SubtypeFoundation"
             ]
-        },
-        "dto.RequestCardRequest": {
-            "type": "object",
-            "required": [
-                "account_number"
-            ],
-            "properties": {
-                "account_number": {
-                    "type": "string"
-                },
-                "authorized_person": {
-                    "$ref": "#/definitions/dto.AuthorizedPersonRequest"
-                }
-            }
-        },
-        "errors.AppError": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "timestamp": {
-                    "type": "string"
-                }
-            }
         }
     },
     "securityDefinitions": {
