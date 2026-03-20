@@ -66,29 +66,26 @@ func (h *ClientHandler) Register(c *gin.Context) {
 // @Security BearerAuth
 // @Router /api/clients [get]
 func (h *ClientHandler) ListClients(c *gin.Context) {
-	var req dto.ListClientsQuery
-	if err := c.ShouldBindQuery(&req); err != nil {
+	var query dto.ListClientsQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
 		c.Error(errors.BadRequestErr(err.Error()))
 		return
 	}
 
-	if req.Page < 0 {
-		req.Page = 1
+	if query.Page < 0 {
+		query.Page = 1
 	}
-	if req.PageSize < 0 {
-		req.PageSize = 10
+	if query.PageSize < 0 {
+		query.PageSize = 10
 	}
 
-	clients, total, err := h.service.GetAllClients(c.Request.Context(), &req)
+	result, err := h.service.GetAllClients(c.Request.Context(), &query)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":  clients,
-		"total": total,
-	})
+	c.JSON(http.StatusOK, result)
 }
 
 // UpdateClient godoc
