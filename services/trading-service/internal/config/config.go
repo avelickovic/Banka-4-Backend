@@ -35,6 +35,7 @@ type Configuration struct {
 	UserServiceAddr    string
 	UserServiceBaseURL string
 	URLs               URLConfig
+	FinnhubAPIKey      string
 }
 
 func GetAsIntOrDefault(env string, defaultValue int) int {
@@ -77,6 +78,7 @@ func Load() *Configuration {
 		JWTSecret:          GetOrThrow("JWT_SECRET"),
 		UserServiceAddr:    GetOrDefault("USER_SERVICE_ADDR", "localhost:50051"),
 		UserServiceBaseURL: GetOrDefault("USER_SERVICE_BASE_URL", "http://localhost:8080"),
+		FinnhubAPIKey:      GetOrThrow("FINNHUB_API_KEY"),
 		DB: DBConfig{
 			Host:     GetOrThrow("DB_HOST"),
 			Port:     GetOrThrow("DB_PORT"),

@@ -8,7 +8,7 @@ type Listing struct {
 	ListingID   uint      `gorm:"primaryKey;autoIncrement"`
 	Ticker      string    `gorm:"not null;uniqueIndex;size:20"`
 	Name        string    `gorm:"not null"`
-	ExchangeMIC string    `gorm:"not null;size:10"`
+	ExchangeMIC string    `gorm:"not null;size:100"`
 	LastRefresh time.Time `gorm:"not null"`
 	Price       float64   `gorm:"not null;default:0"`
 	Ask         float64   `gorm:"not null;default:0"`

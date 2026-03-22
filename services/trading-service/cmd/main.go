@@ -6,6 +6,7 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/config"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/permission"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/seed"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/server"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
@@ -53,6 +54,9 @@ func main() {
 				&model.Stock{},
 				&model.ListingDailyPriceInfo{},
 			)
+		}),
+		fx.Invoke(func(db *gorm.DB, cfg *config.Configuration) error {
+			return seed.SeedStocks(db, cfg.FinnhubAPIKey, 10)
 		}),
 		fx.Invoke(server.NewServer),
 	).Run()
