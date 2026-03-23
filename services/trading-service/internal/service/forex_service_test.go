@@ -21,9 +21,11 @@ func (m *mockExchangeClient) FetchRates(ctx context.Context) (*client.ExchangeRa
 	return m.data, nil
 }
 
-// --- Helper funkcija za in-memory CGO-free DB ---
+// --- Helper funkcija za in-memory CGO-free DB (unikatna baza po testu) ---
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared&_pragma=foreign_keys(1)"), &gorm.Config{
+	// Unikatno ime baze po testu → izbegava deljenje između testova
+	dsn := "file:testdb_" + time.Now().Format("150405.000") + "?mode=memory&_pragma=foreign_keys(1)"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
