@@ -52,18 +52,12 @@ func (s *StockService) Initialize(ctx context.Context) {
 	}
 }
 
-func (s *StockService) StartBackgroundRefresh(ctx context.Context) {
+func (s *StockService) StartBackgroundRefresh() {
 	ticker := time.NewTicker(priceRefreshInterval)
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case <-ticker.C:
-				if err := s.RefreshPrices(ctx); err != nil {
-					log.Println("[refresh] failed:", err)
-				}
+		for range ticker.C {
+			if err := s.RefreshPrices(context.Background()); err != nil {
+				log.Println("[refresh] failed:", err)
 			}
 		}
 	}()

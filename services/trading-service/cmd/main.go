@@ -69,7 +69,7 @@ func main() {
 			lifecycle.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					svc.Initialize(ctx)
-					svc.StartBackgroundRefresh(ctx)
+					svc.StartBackgroundRefresh()
 					return nil
 				},
 			})

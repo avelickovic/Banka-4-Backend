@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 	"gorm.io/gorm"
@@ -31,9 +32,10 @@ func (r *listingRepository) Upsert(listing *model.Listing) error {
 }
 
 func (r *listingRepository) UpdatePriceAndAsk(listing *model.Listing, price, ask float64) error {
-	return r.db.Model(listing).Updates(model.Listing{
-		Price: price,
-		Ask:   ask,
+	return r.db.Model(listing).Updates(map[string]interface{}{
+		"price":        price,
+		"ask":          ask,
+		"last_refresh": time.Now(),
 	}).Error
 }
 
