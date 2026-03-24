@@ -6,7 +6,10 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/config"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/permission"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/repository"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/seed"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/server"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/service"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
@@ -43,6 +46,9 @@ func main() {
 				return permission.NewGrpcPermissionProvider(c)
 			},
 			handler.NewHealthHandler,
+			repository.NewExchangeRepository,
+			service.NewExchangeService,
+			handler.NewExchangeHandler,
 		),
 		fx.Invoke(func(cfg *config.Configuration) error {
 			return logging.Init(cfg.Env)
@@ -51,7 +57,11 @@ func main() {
 			return db.AutoMigrate(
 				&model.Listing{},
 				&model.ListingDailyPriceInfo{},
+				&model.Exchange{},
 			)
+		}),
+		fx.Invoke(func(db *gorm.DB) error {
+			return seed.RunExchangeSeed(db)
 		}),
 		fx.Invoke(server.NewServer),
 	).Run()

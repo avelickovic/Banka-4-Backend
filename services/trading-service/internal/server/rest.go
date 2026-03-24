@@ -21,12 +21,12 @@ import (
 	_ "github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/docs"
 )
 
-func NewServer(lc fx.Lifecycle, cfg *config.Configuration, healthHandler *handler.HealthHandler) {
+func NewServer(lc fx.Lifecycle, cfg *config.Configuration, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler) {
 	r := gin.New()
 
 	InitRouter(r, cfg)
 
-	SetupRoutes(r, healthHandler)
+	SetupRoutes(r, healthHandler, exchangeHandler)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -54,12 +54,18 @@ func InitRouter(r *gin.Engine, cfg *config.Configuration) {
 	validator.RegisterValidators()
 }
 
-func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler) {
+func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api")
 	{
 		api.GET("/health", healthHandler.Health)
+
+		exchanges := api.Group("/exchanges")
+		{
+			exchanges.GET("", exchangeHandler.GetAll)
+			exchanges.PATCH("/:micCode/toggle", exchangeHandler.ToggleTradingEnabled)
+		}
 	}
 }
 
