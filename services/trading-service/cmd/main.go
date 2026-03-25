@@ -70,11 +70,18 @@ func main() {
 				&model.Exchange{},
 			)
 		}),
-		fx.Invoke(func(svc *service.StockService) {
-			go func() {
-				svc.Initialize(context.Background())
-				svc.StartBackgroundRefresh()
-			}()
+		fx.Invoke(func(lc fx.Lifecycle, svc *service.StockService) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					go svc.Initialize(context.Background())
+					svc.Start()
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					svc.Stop()
+					return nil
+				},
+			})
 		}),
 		fx.Invoke(func(db *gorm.DB) error {
 			return seed.RunExchangeSeed(db)
