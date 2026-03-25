@@ -49,6 +49,11 @@ func main() {
 				return permission.NewGrpcPermissionProvider(c)
 			},
 			handler.NewHealthHandler,
+			repository.NewForexRepository,
+			func(cfg *config.Configuration) client.ExchangeRateClient {
+				return client.NewExchangeRateClient(cfg.ExchangeRateAPIKey)
+			},
+			service.NewForexService,
 
 			func(cfg *config.Configuration) *client.StockClient {
 				return client.NewStockClient(cfg.FinnhubAPIKey)
@@ -69,6 +74,7 @@ func main() {
 				&model.Stock{},
 				&model.ListingDailyPriceInfo{},
 				&model.Exchange{},
+				&model.ForexPair{},
 				&model.FuturesContract{},
 			)
 		}),
@@ -92,5 +98,18 @@ func main() {
 			return seed.RunExchangeSeed(db)
 		}),
 		fx.Invoke(server.NewServer),
+		fx.Invoke(func(lifecycle fx.Lifecycle, forexService *service.ForexService) {
+			lifecycle.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					forexService.Initialize(ctx)
+					forexService.Start()
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					forexService.Stop()
+					return nil
+				},
+			})
+		}),
 	).Run()
 }
