@@ -17,7 +17,7 @@ import (
 
 func SeedFuturesContracts(db *gorm.DB) error {
 	_, filename, _, _ := runtime.Caller(0)
-	csvPath := filepath.Join(filepath.Dir(filename), "exchanges_with_offset.csv")
+	csvPath := filepath.Join(filepath.Dir(filename), "futures_with_dates.csv")
 
 	f, err := os.Open(csvPath)
 	if err != nil {
@@ -44,13 +44,13 @@ func SeedFuturesContracts(db *gorm.DB) error {
 
 		size, err := strconv.ParseFloat(row[2], 64)
 		if err != nil {
-			log.Printf("invalid contract size at line %d: %w", i+1, err)
+			log.Printf("invalid contract size at line %d: %v", i+1, err)
 			continue
 		}
 
 		date, err := time.Parse("2006-01-02", row[4])
 		if err != nil {
-			log.Printf("invalid date at line %d: %w", i+1, err)
+			log.Printf("invalid date at line %d: %v", i+1, err)
 			continue
 		}
 
