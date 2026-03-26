@@ -35,6 +35,8 @@ type Order struct {
 	FilledQty     uint           `gorm:"not null;default:0"`
 	LimitValue    *float64
 	StopValue     *float64
+	ContractSize  float64     `gorm:"not null;default:1"`
+	PricePerUnit  *float64
 	AllOrNone     bool        `gorm:"not null;default:false"`
 	Margin        bool        `gorm:"not null;default:false"`
 	Status        OrderStatus `gorm:"not null;size:20"`

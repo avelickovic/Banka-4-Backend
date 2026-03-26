@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(xargs ls:*)",
+      "Bash(find 'D:/RAF/04/Softversko inzinjerstvo/03 sprint/Banka-4-Backend/services/trading-service' -name *.go)"
+    ]
+  }
+}
