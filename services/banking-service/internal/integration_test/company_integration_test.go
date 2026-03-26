@@ -9,6 +9,7 @@ import (
 	"banking-service/internal/model"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateCompany(t *testing.T) {
@@ -121,4 +122,40 @@ func TestCreateCompany(t *testing.T) {
 	var count int64
 	db.Model(&model.Company{}).Count(&count)
 	assert.Equal(t, int64(1), count)
+}
+
+func TestGetWorkCodes(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	router := setupTestRouter(t, db)
+
+	workCodeOne := &model.WorkCode{Code: "64.1", Description: "Banking"}
+	workCodeTwo := &model.WorkCode{Code: "62.0", Description: "Software development"}
+	require.NoError(t, db.Create(workCodeOne).Error)
+	require.NoError(t, db.Create(workCodeTwo).Error)
+
+	employeeAuth := authHeaderForEmployee(t, 1, 1)
+	clientAuth := authHeaderForClient(t, 10, 100)
+
+	t.Run("employee can fetch work codes", func(t *testing.T) {
+		recorder := performRequest(t, router, http.MethodGet, "/api/companies/work-codes", nil, employeeAuth)
+		requireStatus(t, recorder, http.StatusOK)
+
+		resp := decodeResponse[[]map[string]any](t, recorder)
+		require.Len(t, resp, 2)
+		assert.Equal(t, "62.0", resp[0]["code"])
+		assert.Equal(t, "Software development", resp[0]["description"])
+		assert.Equal(t, "64.1", resp[1]["code"])
+	})
+
+	t.Run("client cannot fetch work codes", func(t *testing.T) {
+		recorder := performRequest(t, router, http.MethodGet, "/api/companies/work-codes", nil, clientAuth)
+		requireStatus(t, recorder, http.StatusForbidden)
+	})
+
+	t.Run("missing auth", func(t *testing.T) {
+		recorder := performRequest(t, router, http.MethodGet, "/api/companies/work-codes", nil, "")
+		requireStatus(t, recorder, http.StatusUnauthorized)
+	})
 }

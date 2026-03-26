@@ -495,6 +495,15 @@ definitions:
       id:
         type: integer
     type: object
+  dto.WorkCodeResponse:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+    type: object
   errors.AppError:
     properties:
       message:
@@ -1672,6 +1681,35 @@ paths:
       summary: Execute an internal transfer
       tags:
       - transfers
+  /api/companies/work-codes:
+    get:
+      description: Returns all available company work codes for frontend selection.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.WorkCodeResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: List all work codes
+      tags:
+      - companies
   /api/health:
     get:
       description: Returns service health status

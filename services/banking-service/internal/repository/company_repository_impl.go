@@ -20,6 +20,18 @@ func (r *companyRepository) Create(ctx context.Context, company *model.Company) 
 	return r.db.WithContext(ctx).Create(company).Error
 }
 
+func (r *companyRepository) GetWorkCodes(ctx context.Context) ([]model.WorkCode, error) {
+	var workCodes []model.WorkCode
+
+	if err := r.db.WithContext(ctx).
+		Order("code ASC").
+		Find(&workCodes).Error; err != nil {
+		return nil, err
+	}
+
+	return workCodes, nil
+}
+
 func (r *companyRepository) WorkCodeExists(ctx context.Context, id uint) (bool, error) {
 	var count int64
 

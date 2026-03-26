@@ -74,3 +74,12 @@ func (s *CompanyService) Create(ctx context.Context, req dto.CreateCompanyReques
 
 	return company, nil
 }
+
+func (s *CompanyService) GetWorkCodes(ctx context.Context) ([]model.WorkCode, error) {
+	workCodes, err := s.repo.GetWorkCodes(ctx)
+	if err != nil {
+		return nil, errors.InternalErr(err)
+	}
+
+	return workCodes, nil
+}

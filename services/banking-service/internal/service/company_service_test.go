@@ -14,6 +14,8 @@ import (
 type fakeCompanyRepo struct {
 	createdCompany        *model.Company
 	createErr             error
+	workCodes             []model.WorkCode
+	workCodesErr          error
 	workCodeExists        bool
 	workCodeErr           error
 	registrationNumExists bool
@@ -28,6 +30,13 @@ func (f *fakeCompanyRepo) Create(_ context.Context, company *model.Company) erro
 	}
 	f.createdCompany = company
 	return nil
+}
+
+func (f *fakeCompanyRepo) GetWorkCodes(_ context.Context) ([]model.WorkCode, error) {
+	if f.workCodesErr != nil {
+		return nil, f.workCodesErr
+	}
+	return f.workCodes, nil
 }
 
 func (f *fakeCompanyRepo) WorkCodeExists(_ context.Context, _ uint) (bool, error) {
@@ -161,4 +170,36 @@ func TestCreateCompany(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetWorkCodes(t *testing.T) {
+	t.Parallel()
+
+	expected := []model.WorkCode{
+		{WorkCodeID: 1, Code: "62.0", Description: "Software development"},
+		{WorkCodeID: 2, Code: "64.1", Description: "Banking"},
+	}
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		svc := NewCompanyService(&fakeCompanyRepo{workCodes: expected}, &fakeUserClient{}, nil)
+
+		workCodes, err := svc.GetWorkCodes(context.Background())
+
+		require.NoError(t, err)
+		require.Equal(t, expected, workCodes)
+	})
+
+	t.Run("repo error", func(t *testing.T) {
+		t.Parallel()
+
+		svc := NewCompanyService(&fakeCompanyRepo{workCodesErr: fmt.Errorf("db error")}, &fakeUserClient{}, nil)
+
+		workCodes, err := svc.GetWorkCodes(context.Background())
+
+		require.Error(t, err)
+		require.Nil(t, workCodes)
+		require.Contains(t, err.Error(), "db error")
+	})
 }

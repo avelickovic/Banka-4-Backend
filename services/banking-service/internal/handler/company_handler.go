@@ -18,6 +18,27 @@ func NewCompanyHandler(service *service.CompanyService) *CompanyHandler {
 	return &CompanyHandler{service: service}
 }
 
+// GetWorkCodes godoc
+// @Summary List all work codes
+// @Description Returns all available company work codes for frontend selection.
+// @Tags companies
+// @Produce json
+// @Success 200 {array} dto.WorkCodeResponse
+// @Failure 401 {object} errors.AppError
+// @Failure 403 {object} errors.AppError
+// @Failure 500 {object} errors.AppError
+// @Security BearerAuth
+// @Router /api/companies/work-codes [get]
+func (h *CompanyHandler) GetWorkCodes(c *gin.Context) {
+	workCodes, err := h.service.GetWorkCodes(c.Request.Context())
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToWorkCodeResponses(workCodes))
+}
+
 func (h *CompanyHandler) Create(c *gin.Context) {
 	var req dto.CreateCompanyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
