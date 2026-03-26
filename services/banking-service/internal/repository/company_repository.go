@@ -8,6 +8,7 @@ import (
 
 type CompanyRepository interface {
 	Create(ctx context.Context, company *model.Company) error
+	GetCompanies(ctx context.Context) ([]model.Company, error)
 	GetWorkCodes(ctx context.Context) ([]model.WorkCode, error)
 	WorkCodeExists(ctx context.Context, id uint) (bool, error)
 	RegistrationNumberExists(ctx context.Context, registrationNumber string) (bool, error)

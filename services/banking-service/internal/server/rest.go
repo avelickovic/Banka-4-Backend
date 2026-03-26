@@ -157,6 +157,7 @@ func SetupRoutes(
 		companies := api.Group("/companies")
 		companies.Use(auth.Middleware(verifier, permissions))
 		{
+			companies.GET("", auth.RequireIdentityType(auth.IdentityEmployee), companyHandler.GetCompanies)
 			companies.GET("/work-codes", auth.RequireIdentityType(auth.IdentityEmployee), companyHandler.GetWorkCodes)
 			companies.POST("", auth.RequireIdentityType(auth.IdentityEmployee), companyHandler.Create)
 		}

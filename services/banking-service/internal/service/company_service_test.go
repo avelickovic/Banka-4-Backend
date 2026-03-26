@@ -14,6 +14,8 @@ import (
 type fakeCompanyRepo struct {
 	createdCompany        *model.Company
 	createErr             error
+	companies             []model.Company
+	companiesErr          error
 	workCodes             []model.WorkCode
 	workCodesErr          error
 	workCodeExists        bool
@@ -30,6 +32,13 @@ func (f *fakeCompanyRepo) Create(_ context.Context, company *model.Company) erro
 	}
 	f.createdCompany = company
 	return nil
+}
+
+func (f *fakeCompanyRepo) GetCompanies(_ context.Context) ([]model.Company, error) {
+	if f.companiesErr != nil {
+		return nil, f.companiesErr
+	}
+	return f.companies, nil
 }
 
 func (f *fakeCompanyRepo) GetWorkCodes(_ context.Context) ([]model.WorkCode, error) {
@@ -200,6 +209,38 @@ func TestGetWorkCodes(t *testing.T) {
 
 		require.Error(t, err)
 		require.Nil(t, workCodes)
+		require.Contains(t, err.Error(), "db error")
+	})
+}
+
+func TestGetCompanies(t *testing.T) {
+	t.Parallel()
+
+	expected := []model.Company{
+		{CompanyID: 1, Name: "Acme", RegistrationNumber: "12345678", TaxNumber: "123456789", WorkCodeID: 1, Address: "A", OwnerID: 10},
+		{CompanyID: 2, Name: "Globex", RegistrationNumber: "87654321", TaxNumber: "987654321", WorkCodeID: 2, Address: "B", OwnerID: 11},
+	}
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		svc := NewCompanyService(&fakeCompanyRepo{companies: expected}, &fakeUserClient{}, nil)
+
+		companies, err := svc.GetCompanies(context.Background())
+
+		require.NoError(t, err)
+		require.Equal(t, expected, companies)
+	})
+
+	t.Run("repo error", func(t *testing.T) {
+		t.Parallel()
+
+		svc := NewCompanyService(&fakeCompanyRepo{companiesErr: fmt.Errorf("db error")}, &fakeUserClient{}, nil)
+
+		companies, err := svc.GetCompanies(context.Background())
+
+		require.Error(t, err)
+		require.Nil(t, companies)
 		require.Contains(t, err.Error(), "db error")
 	})
 }

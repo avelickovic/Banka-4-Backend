@@ -159,3 +159,47 @@ func TestGetWorkCodes(t *testing.T) {
 		requireStatus(t, recorder, http.StatusUnauthorized)
 	})
 }
+
+func TestGetCompanies(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	router := setupTestRouter(t, db)
+
+	workCode := seedWorkCode(t, db)
+	companyOne := seedCompany(t, db, 100, workCode.WorkCodeID)
+	companyTwo := &model.Company{
+		Name:               uniqueValue(t, "company"),
+		RegistrationNumber: "87654321",
+		TaxNumber:          "987654321",
+		WorkCodeID:         workCode.WorkCodeID,
+		Address:            "Second Street 2",
+		OwnerID:            101,
+	}
+	require.NoError(t, db.Create(companyTwo).Error)
+
+	employeeAuth := authHeaderForEmployee(t, 1, 1)
+	clientAuth := authHeaderForClient(t, 10, 100)
+
+	t.Run("employee can fetch companies", func(t *testing.T) {
+		recorder := performRequest(t, router, http.MethodGet, "/api/companies", nil, employeeAuth)
+		requireStatus(t, recorder, http.StatusOK)
+
+		resp := decodeResponse[[]map[string]any](t, recorder)
+		require.Len(t, resp, 2)
+		assert.Equal(t, float64(companyOne.CompanyID), resp[0]["id"])
+		assert.Equal(t, companyOne.Name, resp[0]["name"])
+		assert.Equal(t, float64(companyTwo.CompanyID), resp[1]["id"])
+		assert.Equal(t, companyTwo.Name, resp[1]["name"])
+	})
+
+	t.Run("client cannot fetch companies", func(t *testing.T) {
+		recorder := performRequest(t, router, http.MethodGet, "/api/companies", nil, clientAuth)
+		requireStatus(t, recorder, http.StatusForbidden)
+	})
+
+	t.Run("missing auth", func(t *testing.T) {
+		recorder := performRequest(t, router, http.MethodGet, "/api/companies", nil, "")
+		requireStatus(t, recorder, http.StatusUnauthorized)
+	})
+}
