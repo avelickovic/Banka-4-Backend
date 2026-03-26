@@ -11,7 +11,14 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/repository"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/client"
 )
+
+type fakeMailer struct {}
+
+func (f *fakeMailer) Send(to, subject, body string) error {
+	return nil
+}
 
 // ── Fake Loan Repository ─────────────────────────────────────────────
 
@@ -153,6 +160,8 @@ func newLoanService(
 	accountRepo repository.AccountRepository,
 	loanTypeRepo repository.LoanTypeRepository,
 	loanRepo repository.LoanRepository,
+	userClient client.UserClient,
+	mailer Mailer,
 ) *LoanService {
 	if accountRepo == nil {
 		accountRepo = &fakeLoanAccountRepo{
@@ -193,7 +202,7 @@ func newLoanService(
 
 	txRepo := &fakeLoanTransactionRepo{}
 	txProcessor := NewTransactionProcessor(accountRepo, txRepo, &fakeBankingTxManager{})
-	return NewLoanService(accountRepo, loanTypeRepo, loanRepo, txProcessor, &fakeBankingTxManager{})
+	return NewLoanService(accountRepo, loanTypeRepo, loanRepo, txProcessor, &fakeBankingTxManager{}, userClient, mailer)
 }
 
 type fakeLoanTransactionRepo struct {
@@ -263,7 +272,7 @@ func loanTestAccount() *model.Account {
 func TestCalculateMonthlyInstallment(t *testing.T) {
 	t.Parallel()
 
-	svc := newLoanService(nil, nil, nil)
+	svc := newLoanService(nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -322,6 +331,8 @@ func TestSubmitLoanRequest(t *testing.T) {
 		accountRepo  *fakeLoanAccountRepo
 		loanTypeRepo *fakeLoanTypeRepo
 		loanRepo     *fakeLoanRepo
+		userClient   *fakeUserClient
+		mailer       *fakeMailer
 		req          *dto.CreateLoanRequest
 		expectErr    bool
 		errMsg       string
@@ -331,6 +342,8 @@ func TestSubmitLoanRequest(t *testing.T) {
 			accountRepo:  &fakeLoanAccountRepo{account: loanTestAccount()},
 			loanTypeRepo: &fakeLoanTypeRepo{loanType: lt},
 			loanRepo:     &fakeLoanRepo{},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			req: &dto.CreateLoanRequest{
 				AccountNumber:   "4440001100000001",
 				LoanTypeID:      1,
@@ -343,6 +356,8 @@ func TestSubmitLoanRequest(t *testing.T) {
 			accountRepo:  &fakeLoanAccountRepo{account: nil},
 			loanTypeRepo: &fakeLoanTypeRepo{loanType: lt},
 			loanRepo:     &fakeLoanRepo{},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			req: &dto.CreateLoanRequest{
 				AccountNumber:   "nonexistent",
 				LoanTypeID:      1,
@@ -357,6 +372,8 @@ func TestSubmitLoanRequest(t *testing.T) {
 			accountRepo:  &fakeLoanAccountRepo{findErr: fmt.Errorf("db error")},
 			loanTypeRepo: &fakeLoanTypeRepo{loanType: lt},
 			loanRepo:     &fakeLoanRepo{},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			req: &dto.CreateLoanRequest{
 				AccountNumber:   "4440001100000001",
 				LoanTypeID:      1,
@@ -370,6 +387,8 @@ func TestSubmitLoanRequest(t *testing.T) {
 			accountRepo:  &fakeLoanAccountRepo{account: loanTestAccount()},
 			loanTypeRepo: &fakeLoanTypeRepo{loanType: nil},
 			loanRepo:     &fakeLoanRepo{},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			req: &dto.CreateLoanRequest{
 				AccountNumber:   "4440001100000001",
 				LoanTypeID:      999,
@@ -384,6 +403,8 @@ func TestSubmitLoanRequest(t *testing.T) {
 			accountRepo:  &fakeLoanAccountRepo{account: loanTestAccount()},
 			loanTypeRepo: &fakeLoanTypeRepo{loanType: lt},
 			loanRepo:     &fakeLoanRepo{},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			req: &dto.CreateLoanRequest{
 				AccountNumber:   "4440001100000001",
 				LoanTypeID:      1,
@@ -391,13 +412,15 @@ func TestSubmitLoanRequest(t *testing.T) {
 				RepaymentPeriod: 3,
 			},
 			expectErr: true,
-			errMsg:    "repayment perion is not valid",
+			errMsg:    "repayment period is not valid",
 		},
 		{
 			name:         "repayment period above maximum",
 			accountRepo:  &fakeLoanAccountRepo{account: loanTestAccount()},
 			loanTypeRepo: &fakeLoanTypeRepo{loanType: lt},
 			loanRepo:     &fakeLoanRepo{},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			req: &dto.CreateLoanRequest{
 				AccountNumber:   "4440001100000001",
 				LoanTypeID:      1,
@@ -405,13 +428,15 @@ func TestSubmitLoanRequest(t *testing.T) {
 				RepaymentPeriod: 120,
 			},
 			expectErr: true,
-			errMsg:    "repayment perion is not valid",
+			errMsg:    "repayment period is not valid",
 		},
 		{
 			name:         "repo create fails",
 			accountRepo:  &fakeLoanAccountRepo{account: loanTestAccount()},
 			loanTypeRepo: &fakeLoanTypeRepo{loanType: lt},
 			loanRepo:     &fakeLoanRepo{createErr: fmt.Errorf("db error")},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			req: &dto.CreateLoanRequest{
 				AccountNumber:   "4440001100000001",
 				LoanTypeID:      1,
@@ -424,7 +449,7 @@ func TestSubmitLoanRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newLoanService(tt.accountRepo, tt.loanTypeRepo, tt.loanRepo)
+			svc := newLoanService(tt.accountRepo, tt.loanTypeRepo, tt.loanRepo, tt.userClient, tt.mailer)
 
 			resp, err := svc.SubmitLoanRequest(context.Background(), tt.req, 1)
 
@@ -452,6 +477,8 @@ func TestApproveLoanRequest(t *testing.T) {
 	tests := []struct {
 		name      string
 		loanRepo  *fakeLoanRepo
+		userClient   *fakeUserClient
+		mailer       *fakeMailer
 		id        uint
 		expectErr bool
 		errMsg    string
@@ -461,11 +488,15 @@ func TestApproveLoanRequest(t *testing.T) {
 			loanRepo: &fakeLoanRepo{
 				request: &model.LoanRequest{ID: 1, Status: model.LoanRequestPending},
 			},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id: 1,
 		},
 		{
 			name:      "request not found",
 			loanRepo:  &fakeLoanRepo{request: nil},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id:        99,
 			expectErr: true,
 			errMsg:    "loan request not found",
@@ -475,6 +506,8 @@ func TestApproveLoanRequest(t *testing.T) {
 			loanRepo: &fakeLoanRepo{
 				request: &model.LoanRequest{ID: 1, Status: model.LoanRequestApproved},
 			},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id:        1,
 			expectErr: true,
 			errMsg:    "loan request is not pending",
@@ -482,6 +515,8 @@ func TestApproveLoanRequest(t *testing.T) {
 		{
 			name:      "repo find error",
 			loanRepo:  &fakeLoanRepo{findErr: fmt.Errorf("db error")},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id:        1,
 			expectErr: true,
 		},
@@ -491,6 +526,8 @@ func TestApproveLoanRequest(t *testing.T) {
 				request:   &model.LoanRequest{ID: 1, Status: model.LoanRequestPending},
 				updateErr: fmt.Errorf("db error"),
 			},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id:        1,
 			expectErr: true,
 		},
@@ -498,7 +535,7 @@ func TestApproveLoanRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newLoanService(nil, nil, tt.loanRepo)
+			svc := newLoanService(nil, nil, tt.loanRepo, tt.userClient, tt.mailer)
 
 			err := svc.ApproveLoanRequest(context.Background(), tt.id)
 
@@ -522,22 +559,28 @@ func TestRejectLoanRequest(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		loanRepo  *fakeLoanRepo
-		id        uint
-		expectErr bool
-		errMsg    string
+		name       string
+		loanRepo   *fakeLoanRepo
+		userClient *fakeUserClient
+		mailer     *fakeMailer
+		id         uint
+		expectErr  bool
+		errMsg     string
 	}{
 		{
 			name: "success",
 			loanRepo: &fakeLoanRepo{
 				request: &model.LoanRequest{ID: 1, Status: model.LoanRequestPending},
 			},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id: 1,
 		},
 		{
 			name:      "request not found",
 			loanRepo:  &fakeLoanRepo{request: nil},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id:        99,
 			expectErr: true,
 			errMsg:    "loan request not found",
@@ -547,6 +590,8 @@ func TestRejectLoanRequest(t *testing.T) {
 			loanRepo: &fakeLoanRepo{
 				request: &model.LoanRequest{ID: 1, Status: model.LoanRequestRejected},
 			},
+			userClient:   &fakeUserClient{},
+			mailer:       &fakeMailer{},
 			id:        1,
 			expectErr: true,
 			errMsg:    "loan request is not pending",
@@ -555,7 +600,7 @@ func TestRejectLoanRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newLoanService(nil, nil, tt.loanRepo)
+			svc := newLoanService(nil, nil, tt.loanRepo, tt.userClient, tt.mailer)
 
 			err := svc.RejectLoanRequest(context.Background(), tt.id)
 
