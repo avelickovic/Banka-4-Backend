@@ -19,3 +19,13 @@ test:
 
 test-integration:
 	go test -tags=integration ./common/... ./services/user-service/... ./services/banking-service/...
+
+coverage-integration-profile:
+	mkdir -p .tmp-coverage
+	go test -tags=integration -covermode=count -coverpkg=$$(go list ./common/... ./services/user-service/... ./services/banking-service/... | grep -v '/internal/integration_test$$' | paste -sd, -) -coverprofile=.tmp-coverage/coverage.integration.out ./common/... ./services/user-service/... ./services/banking-service/...
+
+coverage-integration: coverage-integration-profile
+	go tool cover -func=.tmp-coverage/coverage.integration.out | tail -n 1
+
+coverage-html: coverage-integration-profile
+	go tool cover -html=.tmp-coverage/coverage.integration.out
