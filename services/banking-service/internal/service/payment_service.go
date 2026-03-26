@@ -26,6 +26,7 @@ type PaymentService struct {
 	accountRepo          repository.AccountRepository
 	mobileSecretClient   client.MobileSecretClient
 	exchangeService      CurrencyConverter
+	txManager            repository.TransactionManager
 	transactionProcessor paymentTransactionProcessor
 	now                  func() time.Time
 }
@@ -36,6 +37,7 @@ func NewPaymentService(
 	accountRepo repository.AccountRepository,
 	mobileSecretClient client.MobileSecretClient,
 	exchangeService CurrencyConverter,
+	txManager repository.TransactionManager,
 	transactionProcessor *TransactionProcessor,
 ) *PaymentService {
 	return &PaymentService{
@@ -44,6 +46,7 @@ func NewPaymentService(
 		accountRepo:          accountRepo,
 		mobileSecretClient:   mobileSecretClient,
 		exchangeService:      exchangeService,
+		txManager:            txManager,
 		transactionProcessor: transactionProcessor,
 		now:                  time.Now,
 	}
@@ -105,20 +108,26 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req dto.CreatePaymen
 		Status:                 model.TransactionProcessing,
 	}
 
-	if err := s.transactionRepo.Create(ctx, transaction); err != nil {
-		return nil, errors.InternalErr(err)
-	}
-
 	payment := &model.Payment{
-		TransactionID:   transaction.TransactionID,
 		RecipientName:   req.RecipientName,
 		ReferenceNumber: req.ReferenceNumber,
 		PaymentCode:     req.PaymentCode,
 		Purpose:         req.Purpose,
 	}
 
-	if err := s.paymentRepo.Create(ctx, payment); err != nil {
-		return nil, errors.InternalErr(err)
+	if err := s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if err := s.transactionRepo.Create(txCtx, transaction); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		payment.TransactionID = transaction.TransactionID
+		if err := s.paymentRepo.Create(txCtx, payment); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	payment.Transaction = *transaction

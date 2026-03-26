@@ -317,6 +317,7 @@ func newCardServiceForTests(
 		cardRequestRepo:      cardRequestRepo,
 		userClient:           userClient,
 		mailer:               mailer,
+		txManager:            &fakeBankingTxManager{},
 	}
 }
 func TestRequestCardPersonalSuccess(t *testing.T) {

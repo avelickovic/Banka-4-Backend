@@ -212,6 +212,12 @@ func (f *fakeMailer) Send(_, _, _ string) error {
 	return f.sendErr
 }
 
+type fakeTxManager struct{}
+
+func (m *fakeTxManager) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 func testConfig() *config.Configuration {
 	return &config.Configuration{
 		JWTSecret:     "test-secret",

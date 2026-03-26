@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/db"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/model"
 )
@@ -45,7 +46,8 @@ func (r *loanRepository) FindByIDAndClientID(ctx context.Context, id uint, clien
 }
 
 func (r *loanRepository) CreateRequest(ctx context.Context, request *model.LoanRequest) error {
-	return r.db.WithContext(ctx).Create(request).Error
+	db := db.DBFromContext(ctx, r.db)
+	return db.WithContext(ctx).Create(request).Error
 }
 
 func (r *loanRepository) FindAll(ctx context.Context, query *dto.ListLoanRequestsQuery) ([]model.LoanRequest, int64, error) {
@@ -84,11 +86,13 @@ func (r *loanRepository) FindByID(ctx context.Context, id uint) (*model.LoanRequ
 }
 
 func (r *loanRepository) Update(ctx context.Context, request *model.LoanRequest) error {
-	return r.db.WithContext(ctx).Save(request).Error
+	db := db.DBFromContext(ctx, r.db)
+	return db.WithContext(ctx).Save(request).Error
 }
 
 func (r *loanRepository) CreateLoan(ctx context.Context, loan *model.Loan) error {
-	return r.db.WithContext(ctx).Create(loan).Error
+	db := db.DBFromContext(ctx, r.db)
+	return db.WithContext(ctx).Create(loan).Error
 }
 
 func (r *loanRepository) FindLoanByRequestID(ctx context.Context, requestID uint) (*model.Loan, error) {
@@ -104,11 +108,13 @@ func (r *loanRepository) FindLoanByRequestID(ctx context.Context, requestID uint
 }
 
 func (r *loanRepository) UpdateLoan(ctx context.Context, loan *model.Loan) error {
-	return r.db.WithContext(ctx).Save(loan).Error
+	db := db.DBFromContext(ctx, r.db)
+	return db.WithContext(ctx).Save(loan).Error
 }
 
 func (r *loanRepository) CreateInstallments(ctx context.Context, installments []model.LoanInstallment) error {
-	return r.db.WithContext(ctx).Create(&installments).Error
+	db := db.DBFromContext(ctx, r.db)
+	return db.WithContext(ctx).Create(&installments).Error
 }
 
 func (r *loanRepository) FindDueInstallments(ctx context.Context, date time.Time) ([]model.LoanInstallment, error) {
@@ -130,7 +136,8 @@ func (r *loanRepository) FindRetryInstallments(ctx context.Context, now time.Tim
 }
 
 func (r *loanRepository) UpdateInstallment(ctx context.Context, installment *model.LoanInstallment) error {
-	return r.db.WithContext(ctx).Save(installment).Error
+	db := db.DBFromContext(ctx, r.db)
+	return db.WithContext(ctx).Save(installment).Error
 }
 
 func (r *loanRepository) FindActiveVariableRateLoans(ctx context.Context) ([]model.Loan, error) {

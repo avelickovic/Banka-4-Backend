@@ -225,6 +225,7 @@ func newTestPaymentService(
 		accountRepo:          accountRepo,
 		exchangeService:      exchangeSvc,
 		mobileSecretClient:   &fakeMobileSecretClient{},
+		txManager:            &fakeBankingTxManager{},
 		transactionProcessor: &fakeVerifyTransactionProcessor{},
 		now:                  time.Now,
 	}

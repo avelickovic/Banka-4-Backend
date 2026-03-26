@@ -21,6 +21,7 @@ type AccountService struct {
 	cardService        *CardService
 	mobileSecretClient client.MobileSecretClient
 	exchangeService    CurrencyConverter
+	txManager          repository.TransactionManager
 }
 
 func NewAccountService(
@@ -31,6 +32,7 @@ func NewAccountService(
 	cardService *CardService,
 	mobileSecretClient client.MobileSecretClient,
 	exchangeService CurrencyConverter,
+	txManager repository.TransactionManager,
 ) *AccountService {
 	return &AccountService{
 		repo:               repo,
@@ -40,6 +42,7 @@ func NewAccountService(
 		cardService:        cardService,
 		mobileSecretClient: mobileSecretClient,
 		exchangeService:    exchangeService,
+		txManager:          txManager,
 	}
 }
 
@@ -147,14 +150,26 @@ func (s *AccountService) Create(ctx context.Context, req dto.CreateAccountReques
 		MonthlyLimit:     monthlyLimit,
 	}
 
-	if err := s.repo.Create(ctx, account); err != nil {
-		return nil, errors.InternalErr(err)
-	}
-
 	if req.GenerateCard {
-		if _, err := s.cardService.createCard(ctx, account, nil); err != nil {
+		if err := s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+			if err := s.repo.Create(txCtx, account); err != nil {
+				return errors.InternalErr(err)
+			}
+
+			if _, err := s.cardService.createCard(txCtx, account, nil); err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
 			return nil, err
 		}
+
+		return account, nil
+	}
+
+	if err := s.repo.Create(ctx, account); err != nil {
+		return nil, errors.InternalErr(err)
 	}
 
 	return account, nil
@@ -208,21 +223,22 @@ func (s *AccountService) RequestLimitsChange(ctx context.Context, accountNumber 
 		return errors.NotFoundErr("account not found")
 	}
 
-	if err := s.verificationRepo.DeleteByAccountAndClient(ctx, accountNumber, clientID); err != nil {
-		return errors.InternalErr(err)
-	}
-
 	token := &model.VerificationToken{
 		ClientID:        clientID,
 		AccountNumber:   accountNumber,
 		NewDailyLimit:   daily,
 		NewMonthlyLimit: monthly,
 	}
-	if err := s.verificationRepo.Create(ctx, token); err != nil {
-		return errors.InternalErr(err)
-	}
+	return s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if err := s.verificationRepo.DeleteByAccountAndClient(txCtx, accountNumber, clientID); err != nil {
+			return errors.InternalErr(err)
+		}
+		if err := s.verificationRepo.Create(txCtx, token); err != nil {
+			return errors.InternalErr(err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func (s *AccountService) ConfirmLimitsChange(ctx context.Context, accountNumber string, clientID uint, code, authorizationHeader string) error {
@@ -241,13 +257,15 @@ func (s *AccountService) ConfirmLimitsChange(ctx context.Context, accountNumber 
 		return errors.BadRequestErr("invalid verification code")
 	}
 
-	if err := s.repo.UpdateLimits(ctx, accountNumber, token.NewDailyLimit, token.NewMonthlyLimit); err != nil {
-		return errors.InternalErr(err)
-	}
-	if err := s.verificationRepo.DeleteByAccountAndClient(ctx, accountNumber, clientID); err != nil {
-		return errors.InternalErr(err)
-	}
-	return nil
+	return s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if err := s.repo.UpdateLimits(txCtx, accountNumber, token.NewDailyLimit, token.NewMonthlyLimit); err != nil {
+			return errors.InternalErr(err)
+		}
+		if err := s.verificationRepo.DeleteByAccountAndClient(txCtx, accountNumber, clientID); err != nil {
+			return errors.InternalErr(err)
+		}
+		return nil
+	})
 }
 
 // ...existing code...

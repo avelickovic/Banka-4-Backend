@@ -122,6 +122,7 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 	resetTokenRepo := repository.NewResetTokenRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	positionRepo := repository.NewPositionRepository(db)
+	txManager := repository.NewGormTransactionManager(db)
 
 	mailer := &fakeMailer{}
 
@@ -134,6 +135,7 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 		refreshTokenRepo,
 		mailer,
 		cfg,
+		txManager,
 	)
 
 	empSvc := service.NewEmployeeService(
@@ -143,6 +145,7 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 		positionRepo,
 		mailer,
 		cfg,
+		txManager,
 	)
 
 	clientSvc := service.NewClientService(
@@ -151,6 +154,7 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 		actTokenRepo,
 		mailer,
 		cfg,
+		txManager,
 	)
 
 	authHandler := handler.NewAuthHandler(authSvc)

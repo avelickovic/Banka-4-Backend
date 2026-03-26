@@ -17,6 +17,7 @@ type LoanService struct {
 	loanTypeRepo repository.LoanTypeRepository
 	loanRepo     repository.LoanRepository
 	txProcessor  *TransactionProcessor
+	txManager    repository.TransactionManager
 }
 
 func NewLoanService(
@@ -24,12 +25,14 @@ func NewLoanService(
 	loanTypeRepo repository.LoanTypeRepository,
 	loanRepo repository.LoanRepository,
 	txProcessor *TransactionProcessor,
+	txManager repository.TransactionManager,
 ) *LoanService {
 	return &LoanService{
 		accountRepo:  accountRepo,
 		loanTypeRepo: loanTypeRepo,
 		loanRepo:     loanRepo,
 		txProcessor:  txProcessor,
+		txManager:    txManager,
 	}
 }
 
@@ -218,52 +221,13 @@ func (s *LoanService) ApproveLoanRequest(ctx context.Context, id uint) error {
 		return errors.BadRequestErr("insufficient bank funds to approve loan")
 	}
 
-	transaction := &model.Transaction{
-		PayerAccountNumber:     bankAccountNumber,
-		RecipientAccountNumber: request.AccountNumber,
-		StartAmount:            request.Amount,
-		StartCurrencyCode:      clientAccount.Currency.Code,
-		EndAmount:              request.Amount,
-		EndCurrencyCode:        clientAccount.Currency.Code,
-		Status:                 model.TransactionProcessing,
-	}
-	if err := s.txProcessor.transactionRepo.Create(ctx, transaction); err != nil {
-		return errors.InternalErr(err)
-	}
-
-	if err := s.txProcessor.Process(ctx, transaction.TransactionID); err != nil {
-		return errors.InternalErr(err)
-	}
-
-	request.Status = model.LoanRequestApproved
-	if err := s.loanRepo.Update(ctx, request); err != nil {
-		return errors.InternalErr(err)
-	}
-
 	now := time.Now()
 	firstInstallmentDate := time.Date(now.Year(), now.Month()+1, now.Day(), 0, 0, 0, 0, time.UTC)
-
-	loan := &model.Loan{
-		LoanRequestID:       request.ID,
-		TransactionID:       &transaction.TransactionID,
-		MonthlyInstallment:  request.MonthlyInstallment,
-		InterestRate:        request.CalculatedRate,
-		IsVariableRate:      false,
-		RepaymentPeriod:     request.RepaymentPeriod,
-		PaidInstallments:    0,
-		StartDate:           now,
-		NextInstallmentDate: firstInstallmentDate,
-		Status:              model.LoanStatusActive,
-	}
-	if err := s.loanRepo.CreateLoan(ctx, loan); err != nil {
-		return errors.InternalErr(err)
-	}
 
 	installments := make([]model.LoanInstallment, request.RepaymentPeriod)
 	for i := 0; i < request.RepaymentPeriod; i++ {
 		dueDate := time.Date(now.Year(), now.Month()+time.Month(i+1), now.Day(), 0, 0, 0, 0, time.UTC)
 		installments[i] = model.LoanInstallment{
-			LoanID:            loan.ID,
 			InstallmentNumber: i + 1,
 			Amount:            request.MonthlyInstallment,
 			InterestRate:      request.CalculatedRate,
@@ -271,11 +235,56 @@ func (s *LoanService) ApproveLoanRequest(ctx context.Context, id uint) error {
 			Status:            model.InstallmentStatusPending,
 		}
 	}
-	if err := s.loanRepo.CreateInstallments(ctx, installments); err != nil {
-		return errors.InternalErr(err)
-	}
 
-	return nil
+	return s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		transaction := &model.Transaction{
+			PayerAccountNumber:     bankAccountNumber,
+			RecipientAccountNumber: request.AccountNumber,
+			StartAmount:            request.Amount,
+			StartCurrencyCode:      clientAccount.Currency.Code,
+			EndAmount:              request.Amount,
+			EndCurrencyCode:        clientAccount.Currency.Code,
+			Status:                 model.TransactionProcessing,
+		}
+		if err := s.txProcessor.transactionRepo.Create(txCtx, transaction); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		if err := s.txProcessor.Process(txCtx, transaction.TransactionID); err != nil {
+			return err
+		}
+
+		request.Status = model.LoanRequestApproved
+		if err := s.loanRepo.Update(txCtx, request); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		loan := &model.Loan{
+			LoanRequestID:       request.ID,
+			TransactionID:       &transaction.TransactionID,
+			MonthlyInstallment:  request.MonthlyInstallment,
+			InterestRate:        request.CalculatedRate,
+			IsVariableRate:      false,
+			RepaymentPeriod:     request.RepaymentPeriod,
+			PaidInstallments:    0,
+			StartDate:           now,
+			NextInstallmentDate: firstInstallmentDate,
+			Status:              model.LoanStatusActive,
+		}
+		if err := s.loanRepo.CreateLoan(txCtx, loan); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		for i := range installments {
+			installments[i].LoanID = loan.ID
+		}
+
+		if err := s.loanRepo.CreateInstallments(txCtx, installments); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		return nil
+	})
 }
 
 func (s *LoanService) RejectLoanRequest(ctx context.Context, id uint) error {

@@ -26,6 +26,7 @@ func newEmployeeService(
 		positionRepo,
 		mailer,
 		testConfig(),
+		&fakeTxManager{},
 	)
 }
 

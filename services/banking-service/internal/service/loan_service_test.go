@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,6 +24,8 @@ type fakeLoanRepo struct {
 	findAllErr error
 	updateErr  error
 	updated    *model.LoanRequest
+	loanErr    error
+	instErr    error
 }
 
 func (f *fakeLoanRepo) CreateRequest(_ context.Context, r *model.LoanRequest) error {
@@ -57,6 +60,42 @@ func (f *fakeLoanRepo) Update(_ context.Context, r *model.LoanRequest) error {
 	return nil
 }
 
+func (f *fakeLoanRepo) CreateLoan(_ context.Context, loan *model.Loan) error {
+	if f.loanErr != nil {
+		return f.loanErr
+	}
+	loan.ID = 1
+	return nil
+}
+
+func (f *fakeLoanRepo) FindLoanByRequestID(_ context.Context, _ uint) (*model.Loan, error) {
+	return nil, nil
+}
+
+func (f *fakeLoanRepo) UpdateLoan(_ context.Context, _ *model.Loan) error {
+	return f.loanErr
+}
+
+func (f *fakeLoanRepo) CreateInstallments(_ context.Context, _ []model.LoanInstallment) error {
+	return f.instErr
+}
+
+func (f *fakeLoanRepo) FindDueInstallments(_ context.Context, _ time.Time) ([]model.LoanInstallment, error) {
+	return nil, nil
+}
+
+func (f *fakeLoanRepo) FindRetryInstallments(_ context.Context, _ time.Time) ([]model.LoanInstallment, error) {
+	return nil, nil
+}
+
+func (f *fakeLoanRepo) UpdateInstallment(_ context.Context, _ *model.LoanInstallment) error {
+	return f.instErr
+}
+
+func (f *fakeLoanRepo) FindActiveVariableRateLoans(_ context.Context) ([]model.Loan, error) {
+	return nil, nil
+}
+
 // ── Fake Loan Type Repository ────────────────────────────────────────
 
 type fakeLoanTypeRepo struct {
@@ -71,15 +110,19 @@ func (f *fakeLoanTypeRepo) FindByID(_ context.Context, _ uint) (*model.LoanType,
 // ── Fake Account Repository for Loan Tests ───────────────────────────
 
 type fakeLoanAccountRepo struct {
-	account *model.Account
-	findErr error
+	account  *model.Account
+	accounts map[string]*model.Account
+	findErr  error
 }
 
 func (f *fakeLoanAccountRepo) Create(_ context.Context, _ *model.Account) error { return nil }
 func (f *fakeLoanAccountRepo) AccountNumberExists(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
-func (f *fakeLoanAccountRepo) FindByAccountNumber(_ context.Context, _ string) (*model.Account, error) {
+func (f *fakeLoanAccountRepo) FindByAccountNumber(_ context.Context, accountNumber string) (*model.Account, error) {
+	if f.accounts != nil {
+		return f.accounts[accountNumber], f.findErr
+	}
 	return f.account, f.findErr
 }
 func (f *fakeLoanAccountRepo) GetByAccountNumber(_ context.Context, _ string) (*model.Account, error) {
@@ -111,7 +154,87 @@ func newLoanService(
 	loanTypeRepo repository.LoanTypeRepository,
 	loanRepo repository.LoanRepository,
 ) *LoanService {
-	return NewLoanService(accountRepo, loanTypeRepo, loanRepo)
+	if accountRepo == nil {
+		accountRepo = &fakeLoanAccountRepo{
+			accounts: map[string]*model.Account{
+				"client-account": {
+					AccountNumber:    "client-account",
+					AvailableBalance: 1_000_000,
+					DailyLimit:       1_000_000,
+					MonthlyLimit:     1_000_000,
+					Currency:         model.Currency{Code: model.RSD},
+				},
+				BankAccounts[model.RSD]: {
+					AccountNumber:    BankAccounts[model.RSD],
+					AvailableBalance: 1_000_000,
+					DailyLimit:       1_000_000,
+					MonthlyLimit:     1_000_000,
+					Currency:         model.Currency{Code: model.RSD},
+				},
+			},
+		}
+	}
+
+	if fakeRepo, ok := loanRepo.(*fakeLoanRepo); ok && fakeRepo.request != nil && fakeRepo.request.AccountNumber == "" {
+		fakeRepo.request.AccountNumber = "client-account"
+		if fakeRepo.request.Amount == 0 {
+			fakeRepo.request.Amount = 100
+		}
+		if fakeRepo.request.MonthlyInstallment == 0 {
+			fakeRepo.request.MonthlyInstallment = 10
+		}
+		if fakeRepo.request.CalculatedRate == 0 {
+			fakeRepo.request.CalculatedRate = 5
+		}
+		if fakeRepo.request.RepaymentPeriod == 0 {
+			fakeRepo.request.RepaymentPeriod = 12
+		}
+	}
+
+	txRepo := &fakeLoanTransactionRepo{}
+	txProcessor := NewTransactionProcessor(accountRepo, txRepo, &fakeBankingTxManager{})
+	return NewLoanService(accountRepo, loanTypeRepo, loanRepo, txProcessor, &fakeBankingTxManager{})
+}
+
+type fakeLoanTransactionRepo struct {
+	transaction *model.Transaction
+	createErr   error
+	findErr     error
+	updateErr   error
+}
+
+func (f *fakeLoanTransactionRepo) Create(_ context.Context, transaction *model.Transaction) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	transaction.TransactionID = 1
+	cloned := *transaction
+	f.transaction = &cloned
+	return nil
+}
+
+func (f *fakeLoanTransactionRepo) GetByID(_ context.Context, _ uint) (*model.Transaction, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+	return f.transaction, nil
+}
+
+func (f *fakeLoanTransactionRepo) GetByPayerAccountNumber(_ context.Context, _ string) ([]*model.Transaction, error) {
+	return nil, nil
+}
+
+func (f *fakeLoanTransactionRepo) GetByRecipientAccountNumber(_ context.Context, _ string) ([]*model.Transaction, error) {
+	return nil, nil
+}
+
+func (f *fakeLoanTransactionRepo) Update(_ context.Context, transaction *model.Transaction) error {
+	if f.updateErr != nil {
+		return f.updateErr
+	}
+	cloned := *transaction
+	f.transaction = &cloned
+	return nil
 }
 
 func testLoanType() *model.LoanType {

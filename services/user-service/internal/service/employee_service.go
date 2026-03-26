@@ -23,6 +23,7 @@ type EmployeeService struct {
 	positionRepo        repository.PositionRepository
 	emailService        Mailer
 	cfg                 *config.Configuration
+	txManager           repository.TransactionManager
 }
 
 func NewEmployeeService(
@@ -32,6 +33,7 @@ func NewEmployeeService(
 	positionRepo repository.PositionRepository,
 	emailService Mailer,
 	cfg *config.Configuration,
+	txManager repository.TransactionManager,
 ) *EmployeeService {
 	return &EmployeeService{
 		employeeRepo:        employeeRepo,
@@ -40,6 +42,7 @@ func NewEmployeeService(
 		positionRepo:        positionRepo,
 		emailService:        emailService,
 		cfg:                 cfg,
+		txManager:           txManager,
 	}
 }
 
@@ -78,12 +81,8 @@ func (s *EmployeeService) Register(ctx context.Context, req *dto.CreateEmployeeR
 		Active:   req.Active,
 	}
 
-	if err := s.identityRepo.Create(ctx, identity); err != nil {
-		return nil, errors.InternalErr(err)
-	}
-
 	employee := &model.Employee{
-		IdentityID:  identity.ID,
+		IdentityID:  0,
 		FirstName:   req.FirstName,
 		LastName:    req.LastName,
 		Gender:      req.Gender,
@@ -95,23 +94,35 @@ func (s *EmployeeService) Register(ctx context.Context, req *dto.CreateEmployeeR
 		Permissions: mapPermissions(0, req.Permissions),
 	}
 
-	if err := s.employeeRepo.Create(ctx, employee); err != nil {
-		return nil, errors.InternalErr(err)
-	}
-
 	tokenStr, err := generateSecureToken(16)
 	if err != nil {
 		return nil, errors.InternalErr(err)
 	}
 
 	activationToken := &model.ActivationToken{
-		IdentityID: identity.ID,
+		IdentityID: 0,
 		Token:      tokenStr,
 		ExpiresAt:  time.Now().Add(24 * time.Hour),
 	}
 
-	if err := s.activationTokenRepo.Create(ctx, activationToken); err != nil {
-		return nil, errors.InternalErr(err)
+	if err := s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if err := s.identityRepo.Create(txCtx, identity); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		employee.IdentityID = identity.ID
+		if err := s.employeeRepo.Create(txCtx, employee); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		activationToken.IdentityID = identity.ID
+		if err := s.activationTokenRepo.Create(txCtx, activationToken); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	activationBase := strings.TrimRight(s.cfg.URLs.FrontendBaseURL, "/")
@@ -212,14 +223,20 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, id uint, req *dto.
 		employee.Permissions = mapPermissions(employee.EmployeeID, *req.Permissions)
 	}
 
-	if identityChanged {
-		if err := s.identityRepo.Update(ctx, identity); err != nil {
-			return nil, errors.InternalErr(err)
+	if err := s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if identityChanged {
+			if err := s.identityRepo.Update(txCtx, identity); err != nil {
+				return errors.InternalErr(err)
+			}
 		}
-	}
 
-	if err := s.employeeRepo.Update(ctx, employee); err != nil {
-		return nil, errors.InternalErr(err)
+		if err := s.employeeRepo.Update(txCtx, employee); err != nil {
+			return errors.InternalErr(err)
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	employee.Identity = *identity

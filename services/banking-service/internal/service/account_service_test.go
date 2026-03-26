@@ -128,6 +128,12 @@ func (f *fakeUserClient) GetClientByID(_ context.Context, _ uint) (*pb.GetClient
 	return &pb.GetClientByIdResponse{}, nil
 }
 
+type fakeBankingTxManager struct{}
+
+func (m *fakeBankingTxManager) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 func (f *fakeUserClient) GetEmployeeByID(_ context.Context, _ uint) (*pb.GetEmployeeByIdResponse, error) {
 	if f.employeeErr != nil {
 		return nil, f.employeeErr
@@ -205,7 +211,7 @@ func newAccountService(
 	if mobileSecretClient == nil {
 		mobileSecretClient = &fakeAccountMobileSecretClient{}
 	}
-	return NewAccountService(accountRepo, currencyRepo, vr, userClient, nil, mobileSecretClient, exchangeConverter)
+	return NewAccountService(accountRepo, currencyRepo, vr, userClient, nil, mobileSecretClient, exchangeConverter, &fakeBankingTxManager{})
 }
 
 func TestCreateAccount(t *testing.T) {
