@@ -74,6 +74,7 @@ func main() {
 				&model.Stock{},
 				&model.ListingDailyPriceInfo{},
 				&model.Exchange{},
+				&model.Order{},
 				&model.ForexPair{},
 				&model.FuturesContract{},
 			)
