@@ -5,11 +5,14 @@ import (
 	"math"
 	"math/rand"
 	"time"
+	"log"
+	"fmt"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/repository"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/client"
 )
 
 type LoanService struct {
@@ -18,6 +21,8 @@ type LoanService struct {
 	loanRepo     repository.LoanRepository
 	txProcessor  *TransactionProcessor
 	txManager    repository.TransactionManager
+	userClient   client.UserClient
+	mailer       Mailer
 }
 
 func NewLoanService(
@@ -26,6 +31,8 @@ func NewLoanService(
 	loanRepo repository.LoanRepository,
 	txProcessor *TransactionProcessor,
 	txManager repository.TransactionManager,
+	userClient client.UserClient,
+	mailer Mailer,
 ) *LoanService {
 	return &LoanService{
 		accountRepo:  accountRepo,
@@ -33,6 +40,8 @@ func NewLoanService(
 		loanRepo:     loanRepo,
 		txProcessor:  txProcessor,
 		txManager:    txManager,
+		userClient:   userClient,
+		mailer:       mailer,
 	}
 }
 
@@ -69,7 +78,15 @@ func (s *LoanService) SubmitLoanRequest(ctx context.Context, req *dto.CreateLoan
 	}
 
 	if req.RepaymentPeriod < loanType.MinRepaymentPeriod || req.RepaymentPeriod > loanType.MaxRepaymentPeriod {
-		return nil, errors.BadRequestErr("repayment perion is not valid for loan type")
+		return nil, errors.BadRequestErr("repayment period is not valid for loan type")
+	}
+	
+	client, err := s.userClient.GetClientByID(ctx, clientID)
+	if err != nil {
+		return nil, errors.ServiceUnavailableErr(err)
+	}
+	if client == nil {
+		return nil, errors.BadRequestErr("client not found in user service")
 	}
 
 	// RAČUNANJE KAMATE I RATE
@@ -89,6 +106,10 @@ func (s *LoanService) SubmitLoanRequest(ctx context.Context, req *dto.CreateLoan
 
 	if err := s.loanRepo.CreateRequest(ctx, newRequest); err != nil {
 		return nil, errors.InternalErr(err)
+	}
+
+	if err := s.mailer.Send(client.Email, "Loan submitted", "Your loan request has been succesfully submitted."); err != nil {
+		log.Printf("failed to send loan request confirmation email to client_id=%d: %v", client.Id, err)
 	}
 
 	return &dto.CreateLoanResponse{
@@ -299,6 +320,18 @@ func (s *LoanService) RejectLoanRequest(ctx context.Context, id uint) error {
 
 	if request.Status != model.LoanRequestPending {
 		return errors.BadRequestErr("loan request is not pending")
+	}
+	
+	client, err := s.userClient.GetClientByID(ctx, request.ClientID)
+	if err != nil {
+		return errors.ServiceUnavailableErr(err)
+	}
+	if client == nil {
+		return errors.InternalErr(fmt.Errorf("client not found in user service"))
+	}
+
+	if err := s.mailer.Send(client.Email, "Loan request rejected", "Your loan request has been rejected."); err != nil {
+		log.Printf("failed to send loan rejection notification email to client_id=%d: %v", client.Id, err)
 	}
 
 	request.Status = model.LoanRequestRejected
