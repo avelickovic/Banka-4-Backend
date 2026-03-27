@@ -174,6 +174,7 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 		empHandler,
 		actuaryHandler,
 		clientHandler,
+		empRepo,
 		auth.TokenVerifier(commonjwt.NewJWTVerifier(cfg.JWTSecret)),
 		dbpermission.NewDBPermissionProvider(db),
 	)

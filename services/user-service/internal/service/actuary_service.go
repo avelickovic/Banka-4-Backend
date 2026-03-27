@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/dto"
-	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/repository"
 )
 
@@ -44,13 +42,6 @@ func (s *ActuaryService) GetAllActuaries(ctx context.Context, query *dto.ListAct
 }
 
 func (s *ActuaryService) UpdateActuarySettings(ctx context.Context, employeeID uint, req *dto.UpdateActuarySettingsRequest) (*dto.ActuaryResponse, error) {
-	actor, err := s.currentSupervisor(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	_ = actor
-
 	employee, err := s.employeeRepo.FindByID(ctx, employeeID)
 	if err != nil {
 		return nil, errors.InternalErr(err)
@@ -79,13 +70,6 @@ func (s *ActuaryService) UpdateActuarySettings(ctx context.Context, employeeID u
 }
 
 func (s *ActuaryService) ResetUsedLimit(ctx context.Context, employeeID uint) (*dto.ActuaryResponse, error) {
-	actor, err := s.currentSupervisor(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	_ = actor
-
 	employee, err := s.employeeRepo.FindByID(ctx, employeeID)
 	if err != nil {
 		return nil, errors.InternalErr(err)
@@ -111,33 +95,4 @@ func (s *ActuaryService) ResetAllUsedLimits(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (s *ActuaryService) currentSupervisor(ctx context.Context) (*model.Employee, error) {
-	authCtx := auth.GetAuthFromContext(ctx)
-	if authCtx == nil {
-		return nil, errors.UnauthorizedErr("not authenticated")
-	}
-
-	var (
-		employee *model.Employee
-		err      error
-	)
-
-	if authCtx.EmployeeID != nil {
-		employee, err = s.employeeRepo.FindByID(ctx, *authCtx.EmployeeID)
-	} else {
-		employee, err = s.employeeRepo.FindByIdentityID(ctx, authCtx.IdentityID)
-	}
-	if err != nil {
-		return nil, errors.InternalErr(err)
-	}
-	if employee == nil {
-		return nil, errors.NotFoundErr("employee not found")
-	}
-	if !employee.IsSupervisor() {
-		return nil, errors.ForbiddenErr("only supervisors can manage actuaries")
-	}
-
-	return employee, nil
 }

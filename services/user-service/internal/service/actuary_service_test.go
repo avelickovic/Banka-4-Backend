@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/model"
 )
@@ -14,7 +13,6 @@ import (
 func TestUpdateActuarySettings(t *testing.T) {
 	t.Parallel()
 
-	supervisor := activeSupervisor()
 	agent := activeAgent()
 
 	repo := &fakeActuaryRepo{
@@ -27,14 +25,13 @@ func TestUpdateActuarySettings(t *testing.T) {
 		repo,
 		&fakeEmployeeRepo{
 			byIDs: map[uint]*model.Employee{
-				supervisor.EmployeeID: supervisor,
-				agent.EmployeeID:      agent,
+				agent.EmployeeID: agent,
 			},
 		},
 	)
 
 	response, err := service.UpdateActuarySettings(
-		withAuth(context.Background(), supervisor.IdentityID, auth.IdentityEmployee),
+		context.Background(),
 		agent.EmployeeID,
 		&dto.UpdateActuarySettingsRequest{
 			Limit:        ptr(200000.0),
@@ -50,7 +47,6 @@ func TestUpdateActuarySettings(t *testing.T) {
 func TestResetUsedLimit(t *testing.T) {
 	t.Parallel()
 
-	supervisor := activeSupervisor()
 	agent := activeAgent()
 
 	repo := &fakeActuaryRepo{
@@ -63,14 +59,13 @@ func TestResetUsedLimit(t *testing.T) {
 		repo,
 		&fakeEmployeeRepo{
 			byIDs: map[uint]*model.Employee{
-				supervisor.EmployeeID: supervisor,
-				agent.EmployeeID:      agent,
+				agent.EmployeeID: agent,
 			},
 		},
 	)
 
 	response, err := service.ResetUsedLimit(
-		withAuth(context.Background(), supervisor.IdentityID, auth.IdentityEmployee),
+		context.Background(),
 		agent.EmployeeID,
 	)
 

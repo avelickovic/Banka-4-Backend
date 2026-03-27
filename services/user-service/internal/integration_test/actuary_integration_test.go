@@ -86,6 +86,19 @@ func TestListActuariesAndManageAgent(t *testing.T) {
 	assert.Equal(t, agent.EmployeeID, listResponse.Data[0].ID)
 	assert.True(t, listResponse.Data[0].IsAgent)
 
+	forbiddenUpdateRecorder := performRequest(
+		t,
+		router,
+		http.MethodPatch,
+		"/api/actuaries/"+itoa(agent.EmployeeID),
+		map[string]any{
+			"limit": 90000.0,
+		},
+		authHeader(t, viewerIdentity.ID, viewer.EmployeeID),
+	)
+
+	requireStatus(t, forbiddenUpdateRecorder, http.StatusForbidden)
+
 	updateRecorder := performRequest(
 		t,
 		router,
