@@ -41,17 +41,7 @@ func NewOrderService(
 }
 
 func (s *OrderService) GetOrders(ctx context.Context, query dto.ListOrdersQuery) ([]model.Order, int64, error) {
-	authCtx := auth.GetAuthFromContext(ctx)
-	if authCtx == nil {
-		return nil, 0, errors.UnauthorizedErr("not authenticated")
-	}
-
-	var filterUserID *uint
-	if authCtx.IdentityType == auth.IdentityClient && authCtx.ClientID != nil {
-		filterUserID = authCtx.ClientID
-	}
-
-	orders, total, err := s.orderRepo.FindAll(ctx, query.Page, query.PageSize, filterUserID, query.Status, query.Direction, query.IsDone)
+	orders, total, err := s.orderRepo.FindAll(ctx, query.Page, query.PageSize, nil, query.Status, query.Direction, query.IsDone)
 	if err != nil {
 		return nil, 0, errors.InternalErr(err)
 	}
