@@ -45,6 +45,9 @@ func main() {
 			func(conn *grpc.ClientConn) pb.PermissionServiceClient {
 				return pb.NewPermissionServiceClient(conn)
 			},
+			func(conn *grpc.ClientConn) pb.UserServiceClient {
+				return pb.NewUserServiceClient(conn)
+			},
 			func(c pb.PermissionServiceClient) auth.PermissionProvider {
 				return permission.NewGrpcPermissionProvider(c)
 			},
@@ -65,6 +68,9 @@ func main() {
 			repository.NewExchangeRepository,
 			service.NewExchangeService,
 			handler.NewExchangeHandler,
+			repository.NewOrderRepository,
+			service.NewOrderService,
+			handler.NewOrderHandler,
 		),
 		fx.Invoke(func(cfg *config.Configuration) error {
 			return logging.Init(cfg.Env)

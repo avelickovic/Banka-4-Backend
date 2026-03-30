@@ -1,0 +1,13 @@
+package repository
+
+import (
+	"context"
+
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
+)
+
+type OrderRepository interface {
+	Create(ctx context.Context, order *model.Order) error
+	FindByID(ctx context.Context, id uint) (*model.Order, error)
+	Save(ctx context.Context, order *model.Order) error
+}
