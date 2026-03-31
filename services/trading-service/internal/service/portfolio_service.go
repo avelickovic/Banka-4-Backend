@@ -107,7 +107,7 @@ func (s *PortfolioService) GetPortfolio(ctx context.Context, identityID uint, ow
 	}
 	meta := make(map[uint]assetMeta)
 
-	// ⚡️ Updated repo calls to include ctx
+	// Updated repo calls to include ctx
 	stocks, err := s.stockRepo.FindByListingIDs(ctx, listingIDs)
 	if err != nil {
 		return nil, pkgerrors.InternalErr(err)
