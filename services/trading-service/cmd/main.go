@@ -72,6 +72,10 @@ func main() {
 			repository.NewExchangeRepository,
 			service.NewExchangeService,
 			handler.NewExchangeHandler,
+			repository.NewOrderOwnershipRepository,
+			repository.NewFuturesContractRepository,
+			service.NewPortfolioService,
+			handler.NewPortfolioHandler,
 			repository.NewOrderRepository,
 			service.NewOrderService,
 			handler.NewOrderHandler,
@@ -87,6 +91,7 @@ func main() {
 				&model.ListingDailyPriceInfo{},
 				&model.Exchange{},
 				&model.Order{},
+				&model.OrderOwnership{},
 				&model.ForexPair{},
 				&model.FuturesContract{},
 			)

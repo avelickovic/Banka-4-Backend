@@ -21,3 +21,11 @@ func (r *optionRepository) Upsert(ctx context.Context, option *model.Option) err
 		Assign(*option).
 		FirstOrCreate(option).Error
 }
+
+func (r *optionRepository) FindByListingIDs(listingIDs []uint) ([]model.Option, error) {
+	var options []model.Option
+	if err := r.db.Where("listing_id IN ?", listingIDs).Preload("Listing").Find(&options).Error; err != nil {
+		return nil, err
+	}
+	return options, nil
+}

@@ -37,7 +37,7 @@ func SeedFuturesContracts(db *gorm.DB) error {
 			continue
 		}
 
-		if len(row) != 5 {
+		if len(row) != 7 {
 			log.Printf("invalid row length at line %d", i+1)
 			continue
 		}
@@ -48,6 +48,12 @@ func SeedFuturesContracts(db *gorm.DB) error {
 			continue
 		}
 
+		price, err := strconv.ParseFloat(row[5], 64)
+		if err != nil {
+			log.Printf("invalid price at line %d: %v", i+1, err)
+			continue
+		}
+
 		date, err := time.Parse("2006-01-02", row[4])
 		if err != nil {
 			log.Printf("invalid date at line %d: %v", i+1, err)
@@ -55,15 +61,22 @@ func SeedFuturesContracts(db *gorm.DB) error {
 		}
 
 		contract := model.FuturesContract{
-			Ticker:         row[0],
-			Name:           row[1],
 			ContractSize:   size,
 			ContractUnit:   row[3],
 			SettlementDate: date,
+			Listing: model.Listing{
+				Ticker:      row[0],
+				Name:        row[1],
+				ExchangeMIC: row[6],
+				LastRefresh: time.Now(),
+				Price:       price * size,
+				Ask:         price * size,
+				ListingType: model.ListingTypeFuture,
+			},
 		}
 
 		var existing model.FuturesContract
-		err = db.Where("ticker = ?", contract.Ticker).First(&existing).Error
+		err = db.Where("ticker = ?", contract.Listing.Ticker).First(&existing).Error
 		if err == nil {
 			continue // Skip if contract with that ticker already exists
 		}

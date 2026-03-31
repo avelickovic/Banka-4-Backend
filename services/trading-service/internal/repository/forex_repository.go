@@ -9,4 +9,5 @@ import (
 type ForexRepository interface {
 	Count(ctx context.Context) (int64, error)
 	Upsert(ctx context.Context, pair model.ForexPair) error
+	FindByListingIDs(listingIDs []uint) ([]model.ForexPair, error)
 }
