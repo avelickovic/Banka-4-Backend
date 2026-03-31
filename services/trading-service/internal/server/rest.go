@@ -24,12 +24,12 @@ import (
 	_ "github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/docs"
 )
 
-func NewServer(lc fx.Lifecycle, cfg *config.Configuration, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, portfolioHandler *handler.PortfolioHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient pb.UserServiceClient) {
+func NewServer(lc fx.Lifecycle, cfg *config.Configuration, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, portfolioHandler *handler.PortfolioHandler, listingHandler *handler.ListingHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient pb.UserServiceClient) {
 	r := gin.New()
 
 	InitRouter(r, cfg)
 
-	SetupRoutes(r, healthHandler, exchangeHandler, orderHandler, portfolioHandler, verifier, permProvider, userClient)
+	SetupRoutes(r, healthHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, verifier, permProvider, userClient)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -57,7 +57,7 @@ func InitRouter(r *gin.Engine, cfg *config.Configuration) {
 	validator.RegisterValidators()
 }
 
-func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, portfolioHandler *handler.PortfolioHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient pb.UserServiceClient) {
+func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, portfolioHandler *handler.PortfolioHandler, listingHandler *handler.ListingHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient pb.UserServiceClient) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api")
@@ -69,6 +69,14 @@ func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, exchangeHa
 			exchanges.GET("", exchangeHandler.GetAll)
 			exchanges.PATCH("/:micCode/toggle", exchangeHandler.ToggleTradingEnabled)
 		}
+    
+		listings := api.Group("/listings")
+		{
+			listings.GET("/stocks", listingHandler.GetStocks)
+			listings.GET("/futures", listingHandler.GetFutures)
+			listings.GET("/forex", listingHandler.GetForex)
+			listings.GET("/options", listingHandler.GetOptions)
+    }
 
 		authMw := auth.Middleware(verifier, permProvider)
 

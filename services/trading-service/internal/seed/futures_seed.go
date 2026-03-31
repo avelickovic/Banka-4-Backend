@@ -87,7 +87,21 @@ func SeedFuturesContracts(db *gorm.DB) error {
 		if err := db.Create(&contract).Error; err != nil {
 			return err
 		}
-	}
 
+		listing := model.Listing{
+			Ticker:      contract.Ticker,
+			Name:        contract.Name,
+			ExchangeMIC: "XCME",
+			Price:       0,
+			Ask:         0,
+			LastRefresh: time.Now(),
+		}
+		if err := db.Where(model.Listing{Ticker: listing.Ticker}).
+			Assign(listing).
+			FirstOrCreate(&listing).Error; err != nil {
+			log.Printf("failed to upsert listing for %s: %v", contract.Ticker, err)
+		}
+	}
+	
 	return nil
 }

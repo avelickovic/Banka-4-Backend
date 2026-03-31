@@ -14,14 +14,18 @@ const (
 )
 
 type Listing struct {
-	ListingID   uint        `gorm:"primaryKey;autoIncrement"`
-	Ticker      string      `gorm:"not null;uniqueIndex;size:20"`
-	Name        string      `gorm:"not null"`
-	ExchangeMIC string      `gorm:"not null;size:100"`
-	LastRefresh time.Time   `gorm:"not null"`
-	Price       float64     `gorm:"not null;default:0"`
-	Ask         float64     `gorm:"not null;default:0"`
-	ListingType ListingType `gorm:"not null;size:10"`
+	ListingID         uint        `gorm:"primaryKey;autoIncrement"`
+	Ticker            string      `gorm:"not null;uniqueIndex;size:20"`
+	Name              string      `gorm:"not null"`
+	ExchangeMIC       string      `gorm:"not null;size:100"`
+	LastRefresh       time.Time   `gorm:"not null"`
+	Price             float64     `gorm:"not null;default:0"`
+	Ask               float64     `gorm:"not null;default:0"`
+	MaintenanceMargin float64     `gorm:"not null;default:0"`
+  ListingType       ListingType `gorm:"not null;size:10"`
+
+	Stock           *Stock                  `gorm:"foreignKey:ListingID"`
+	DailyPriceInfos []ListingDailyPriceInfo `gorm:"foreignKey:ListingID"`
 }
 
 type ListingDailyPriceInfo struct {
