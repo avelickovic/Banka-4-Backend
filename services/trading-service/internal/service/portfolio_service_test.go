@@ -38,6 +38,10 @@ func (r *fakeStockRepo) FindByListingIDs(_ context.Context, _ []uint) ([]model.S
 	return r.stocks, r.err
 }
 
+func (r *fakeStockRepo) Count(_ context.Context) (int64, error) {
+	return 0, nil
+}
+
 type fakeOptionRepo struct {
 	options []model.Option
 	err     error
