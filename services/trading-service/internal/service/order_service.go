@@ -25,13 +25,17 @@ const (
 	stopCheckInterval          = 5 * time.Second
 	executionRetryInterval     = 30 * time.Second
 	maxOrdersPerTick           = 25
+	afterHoursWindow           = 4 * time.Hour
+	afterHoursExecutionDelay   = 30 * time.Minute
 )
 
 type exchangeSession struct {
-	IsOpen    bool
-	NextOpen  time.Time
-	LocalNow  time.Time
-	CloseTime time.Time
+	IsClosed   bool
+	IsOpen     bool
+	AfterHours bool
+	NextOpen   time.Time
+	LocalNow   time.Time
+	CloseTime  time.Time
 }
 
 type tradeSettlement struct {
@@ -169,7 +173,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req dto.CreateOrderReque
 		StopValue:         req.StopValue,
 		AllOrNone:         req.AllOrNone,
 		Margin:            req.Margin,
-		AfterHours:        !session.IsOpen,
+		AfterHours:        session.AfterHours,
 		Triggered:         req.OrderType == model.OrderTypeMarket || req.OrderType == model.OrderTypeLimit,
 		CommissionCharged: false,
 		CommissionExempt:  authCtx.IdentityType == auth.IdentityEmployee,
@@ -180,7 +184,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req dto.CreateOrderReque
 
 	order.Status = s.resolveOrderStatus(ctx, authCtx, &order)
 	if order.Status == model.OrderStatusApproved {
-		nextExecutionAt := s.initialExecutionTime(session)
+		nextExecutionAt := s.initialExecutionTime(session, order.AfterHours)
 		order.NextExecutionAt = &nextExecutionAt
 	}
 
@@ -217,7 +221,7 @@ func (s *OrderService) ApproveOrder(ctx context.Context, orderID uint) (*model.O
 	}
 
 	approverID := authCtx.IdentityID
-	nextExecutionAt := s.initialExecutionTime(s.resolveExchangeSession(exchange))
+	nextExecutionAt := s.initialExecutionTime(s.resolveExchangeSession(exchange), order.AfterHours)
 	order.Status = model.OrderStatusApproved
 	order.ApprovedBy = &approverID
 	order.NextExecutionAt = &nextExecutionAt
@@ -337,8 +341,8 @@ func (s *OrderService) processOrder(ctx context.Context, order *model.Order) err
 	}
 
 	session := s.resolveExchangeSession(exchange)
-	if !session.IsOpen {
-		nextOpen := session.NextOpen
+	if !session.IsOpen && !session.AfterHours {
+		nextOpen := s.initialExecutionTime(session, order.AfterHours)
 		order.NextExecutionAt = &nextOpen
 		order.UpdatedAt = s.now()
 		return s.orderRepo.Save(ctx, order)
@@ -523,21 +527,35 @@ func (s *OrderService) resolveExchangeSession(exchange *model.Exchange) exchange
 	openToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), openTime.Hour(), openTime.Minute(), 0, 0, localNow.Location())
 	closeToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), closeTime.Hour(), closeTime.Minute(), 0, 0, localNow.Location())
 	nextOpen := nextTradingOpen(openToday)
+	lastClose := previousTradingClose(closeToday, localNow)
+	isAfterHours := !localNow.Before(lastClose) && localNow.Before(lastClose.Add(afterHoursWindow))
 
 	if isWeekend(localNow) {
-		return exchangeSession{IsOpen: false, NextOpen: nextOpen, LocalNow: localNow, CloseTime: closeToday}
+		return exchangeSession{IsClosed: true, IsOpen: false, AfterHours: isAfterHours, NextOpen: nextOpen, LocalNow: localNow, CloseTime: closeToday}
 	}
 
 	switch {
 	case localNow.Before(openToday):
 		nextOpen = nextTradingOpen(openToday)
-		return exchangeSession{IsOpen: false, NextOpen: nextOpen, LocalNow: localNow, CloseTime: closeToday}
+		return exchangeSession{IsClosed: true, IsOpen: false, AfterHours: isAfterHours, NextOpen: nextOpen, LocalNow: localNow, CloseTime: closeToday}
 	case localNow.Before(closeToday):
 		return exchangeSession{IsOpen: true, LocalNow: localNow, CloseTime: closeToday}
 	default:
 		nextOpen = nextTradingOpen(openToday.Add(24 * time.Hour))
-		return exchangeSession{IsOpen: false, NextOpen: nextOpen, LocalNow: localNow, CloseTime: closeToday}
+		return exchangeSession{IsClosed: true, IsOpen: false, AfterHours: isAfterHours, NextOpen: nextOpen, LocalNow: localNow, CloseTime: closeToday}
 	}
+}
+
+func previousTradingClose(candidate time.Time, localNow time.Time) time.Time {
+	if !localNow.After(candidate) {
+		candidate = candidate.Add(-24 * time.Hour)
+	}
+
+	for isWeekend(candidate) {
+		candidate = candidate.Add(-24 * time.Hour)
+	}
+
+	return candidate
 }
 
 func nextTradingOpen(candidate time.Time) time.Time {
@@ -552,12 +570,18 @@ func isWeekend(t time.Time) bool {
 	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
 }
 
-func (s *OrderService) initialExecutionTime(session exchangeSession) time.Time {
-	if session.IsOpen {
-		return s.now()
+func (s *OrderService) initialExecutionTime(session exchangeSession, afterHours bool) time.Time {
+	if afterHours {
+		return s.now().Add(afterHoursExecutionDelay)
 	}
 
-	return session.NextOpen
+	nextExecutionAt := s.now()
+	if session.IsOpen {
+		return nextExecutionAt
+	}
+
+	nextExecutionAt = session.NextOpen
+	return nextExecutionAt
 }
 
 func (s *OrderService) nextExecutionAt(ctx context.Context, order *model.Order) time.Time {
@@ -569,7 +593,12 @@ func (s *OrderService) nextExecutionAt(ctx context.Context, order *model.Order) 
 	volume := math.Max(float64(s.resolveDailyVolume(ctx, order.ListingID)), 10)
 	maxSeconds := math.Max(1, float64(24*60)/(volume/float64(remaining)))
 	waitSeconds := s.rng.Float64() * maxSeconds
-	return s.now().Add(time.Duration(waitSeconds * float64(time.Second)))
+	nextExecutionAt := s.now().Add(time.Duration(waitSeconds * float64(time.Second)))
+	if order.AfterHours {
+		nextExecutionAt = nextExecutionAt.Add(afterHoursExecutionDelay)
+	}
+
+	return nextExecutionAt
 }
 
 func (s *OrderService) resolveDailyVolume(ctx context.Context, listingID uint) uint {
