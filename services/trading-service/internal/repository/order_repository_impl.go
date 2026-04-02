@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -61,4 +62,26 @@ func (r *orderRepositoryImpl) FindAll(ctx context.Context, page, pageSize int, u
 	offset := (page - 1) * pageSize
 	err := db.Preload("Listing").Limit(pageSize).Offset(offset).Find(&orders).Error
 	return orders, count, err
+}
+
+func (r *orderRepositoryImpl) FindReadyForExecution(ctx context.Context, before time.Time, limit int) ([]model.Order, error) {
+	var orders []model.Order
+
+	query := r.db.WithContext(ctx).
+		Preload("Listing").
+		Where("status = ?", model.OrderStatusApproved).
+		Where("is_done = ?", false).
+		Where("next_execution_at IS NOT NULL").
+		Where("next_execution_at <= ?", before).
+		Order("next_execution_at ASC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	if err := query.Find(&orders).Error; err != nil {
+		return nil, err
+	}
+
+	return orders, nil
 }

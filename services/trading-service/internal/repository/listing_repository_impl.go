@@ -40,6 +40,18 @@ func (r *listingRepository) FindByID(ctx context.Context, id uint) (*model.Listi
 	return &listing, result.Error
 }
 
+func (r *listingRepository) FindLatestDailyPriceInfo(ctx context.Context, listingID uint) (*model.ListingDailyPriceInfo, error) {
+	var dailyInfo model.ListingDailyPriceInfo
+	result := r.db.WithContext(ctx).
+		Where("listing_id = ?", listingID).
+		Order("date DESC").
+		First(&dailyInfo)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &dailyInfo, result.Error
+}
+
 func (r *listingRepository) Upsert(ctx context.Context, listing *model.Listing) error {
 	return r.db.WithContext(ctx).
 		Where(model.Listing{Ticker: listing.Ticker}).

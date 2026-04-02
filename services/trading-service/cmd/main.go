@@ -85,6 +85,7 @@ func main() {
 			service.NewPortfolioService,
 			handler.NewPortfolioHandler,
 			repository.NewOrderRepository,
+			repository.NewOrderTransactionRepository,
 			service.NewOrderService,
 			handler.NewOrderHandler,
 		),
@@ -100,6 +101,7 @@ func main() {
 				&model.Exchange{},
 				&model.Order{},
 				&model.OrderOwnership{},
+				&model.OrderTransaction{},
 				&model.ForexPair{},
 				&model.FuturesContract{},
 			)
@@ -156,6 +158,18 @@ func main() {
 				},
 				OnStop: func(ctx context.Context) error {
 					c.Stop()
+          return nil
+				},
+			})
+		}),
+		fx.Invoke(func(lifecycle fx.Lifecycle, orderService *service.OrderService) {
+			lifecycle.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					orderService.Start()
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					orderService.Stop()
 					return nil
 				},
 			})
