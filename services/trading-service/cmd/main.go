@@ -73,7 +73,6 @@ func main() {
 			repository.NewListingRepository,
 			repository.NewStockRepository,
 			repository.NewOptionRepository,
-			repository.NewForexRepository,
 			job.NewDailyPriceJob,
 			service.NewStockService,
 			repository.NewExchangeRepository,
