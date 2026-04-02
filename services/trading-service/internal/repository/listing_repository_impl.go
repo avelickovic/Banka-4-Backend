@@ -220,3 +220,26 @@ func (r *listingRepository) FindOptions(ctx context.Context, filter ListingFilte
 
 	return listings, count, err
 }
+func (r *listingRepository) CreateDailyPriceInfo(ctx context.Context, info *model.ListingDailyPriceInfo) error {
+	return r.db.WithContext(ctx).Create(info).Error
+}
+
+func (r *listingRepository) FindLastDailyPriceInfo(ctx context.Context, listingID uint, beforeDate time.Time) (*model.ListingDailyPriceInfo, error) {
+	var info model.ListingDailyPriceInfo
+	err := r.db.WithContext(ctx).
+		Where("listing_id = ? AND date < ?", listingID, beforeDate).
+		Order("date DESC").
+		First(&info).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &info, err
+}
+
+func (r *listingRepository) FindByType(ctx context.Context, listingType model.ListingType) ([]model.Listing, error) {
+	var listings []model.Listing
+	err := r.db.WithContext(ctx).
+		Where("listing_type = ?", listingType).
+		Find(&listings).Error
+	return listings, err
+}

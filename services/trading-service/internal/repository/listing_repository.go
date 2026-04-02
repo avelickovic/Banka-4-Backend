@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 )
@@ -15,4 +16,7 @@ type ListingRepository interface {
 	Upsert(ctx context.Context, listing *model.Listing) error
 	UpdatePriceAndAsk(ctx context.Context, listing *model.Listing, price, ask float64) error
 	Count(ctx context.Context) (int64, error)
+	CreateDailyPriceInfo(ctx context.Context, info *model.ListingDailyPriceInfo) error
+	FindLastDailyPriceInfo(ctx context.Context, listingID uint, beforeDate time.Time) (*model.ListingDailyPriceInfo, error)
+	FindByType(ctx context.Context, listingType model.ListingType) ([]model.Listing, error)
 }
