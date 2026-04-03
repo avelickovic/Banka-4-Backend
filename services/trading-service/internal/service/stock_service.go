@@ -195,7 +195,7 @@ func stringsContainsDot(s string) bool {
 }
 
 func (s *StockService) SeedOptions(ctx context.Context, limit int) error {
-  stocks, err := s.stockRepo.FindAll(ctx)
+	stocks, err := s.stockRepo.FindAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load stocks: %w", err)
 	}
@@ -285,7 +285,7 @@ func (s *StockService) seedGeneratedOption(
 
 	option := &model.Option{
 		ListingID:         listing.ListingID,
-		StockID:           stockID, 
+		StockID:           stockID,
 		OptionType:        optType,
 		StrikePrice:       strike,
 		ContractSize:      100,

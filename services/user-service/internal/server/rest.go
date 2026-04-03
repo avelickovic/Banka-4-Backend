@@ -108,7 +108,7 @@ func SetupRoutes(
 			emp.GET("/:id", commonauth.RequirePermission(permission.EmployeeView), empHandler.GetEmployee)
 			emp.PATCH("/:id", commonauth.RequirePermission(permission.EmployeeUpdate), empHandler.UpdateEmployee)
 			emp.GET("", commonauth.RequirePermission(permission.EmployeeView), empHandler.ListEmployees)
-      emp.POST("/:id/deactivate", commonauth.RequirePermission(permission.EmployeeUpdate), empHandler.DeactivateEmployee)
+			emp.POST("/:id/deactivate", commonauth.RequirePermission(permission.EmployeeUpdate), empHandler.DeactivateEmployee)
 		}
 
 		act := api.Group("/actuaries")

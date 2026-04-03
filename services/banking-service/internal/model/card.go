@@ -17,9 +17,9 @@ const (
 )
 
 const (
-	CardBrandVisa            CardBrand = "Visa"
-	CardBrandMasterCard      CardBrand = "MasterCard"
-	CardBrandDinaCard        CardBrand = "DinaCard"
+	CardBrandVisa       CardBrand = "Visa"
+	CardBrandMasterCard CardBrand = "MasterCard"
+	CardBrandDinaCard   CardBrand = "DinaCard"
 )
 
 const (
@@ -43,6 +43,6 @@ type Card struct {
 	Limit              float64    `gorm:"not null;default:0"`
 	Status             CardStatus `gorm:"not null;size:20;default:'Active'"`
 	AuthorizedPersonID *uint      `gorm:"index"`
-	CreatedAt          time.Time `gorm:"autoCreateTime"`
-	ExpiresAt          time.Time `gorm:"not null"`
+	CreatedAt          time.Time  `gorm:"autoCreateTime"`
+	ExpiresAt          time.Time  `gorm:"not null"`
 }

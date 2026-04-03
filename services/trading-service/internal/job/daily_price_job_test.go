@@ -39,7 +39,6 @@ func (m *mockListingRepo) CreateDailyPriceInfo(ctx context.Context, info *model.
 	return nil
 }
 
-
 func (m *mockListingRepo) FindStocks(ctx context.Context, filter repository.ListingFilter) ([]model.Listing, int64, error) {
 	return nil, 0, nil
 }

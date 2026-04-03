@@ -67,7 +67,6 @@ type fakeForexRepo struct {
 	err   error
 }
 
-
 func (r *fakeForexRepo) FindByListingIDs(_ context.Context, _ []uint) ([]model.ForexPair, error) {
 	return r.forex, r.err
 }

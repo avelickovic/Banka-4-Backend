@@ -7,9 +7,9 @@ import (
 type ListingType string
 
 const (
-	ListingTypeStock    ListingType = "stock"
-	ListingTypeOption   ListingType = "option"
-	ListingTypeFuture   ListingType = "future"
+	ListingTypeStock     ListingType = "stock"
+	ListingTypeOption    ListingType = "option"
+	ListingTypeFuture    ListingType = "future"
 	ListingTypeForexPair ListingType = "forexPair"
 )
 
@@ -22,7 +22,7 @@ type Listing struct {
 	Price             float64     `gorm:"not null;default:0"`
 	Ask               float64     `gorm:"not null;default:0"`
 	MaintenanceMargin float64     `gorm:"not null;default:0"`
-  ListingType       ListingType `gorm:"not null;size:10"`
+	ListingType       ListingType `gorm:"not null;size:10"`
 
 	Stock           *Stock                  `gorm:"foreignKey:ListingID"`
 	DailyPriceInfos []ListingDailyPriceInfo `gorm:"foreignKey:ListingID"`

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -73,16 +73,16 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 	}
 
 	if time.Since(identity.LastFailedLoginTime) > time.Duration(s.cfg.FailedLoginWindow)*time.Minute {
-	  identity.FailedLoginCount = 0
+		identity.FailedLoginCount = 0
 	}
 
-	if(int(identity.FailedLoginCount) >= s.cfg.MaxFailedLogins) {
+	if int(identity.FailedLoginCount) >= s.cfg.MaxFailedLogins {
 		return nil, errors.UnauthorizedErr("account is temporarily blocked")
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(identity.PasswordHash), []byte(req.Password)) 
+	err = bcrypt.CompareHashAndPassword([]byte(identity.PasswordHash), []byte(req.Password))
 
-	if(err != nil) {
+	if err != nil {
 		identity.FailedLoginCount++
 		identity.LastFailedLoginTime = time.Now()
 
@@ -95,7 +95,7 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 
 	identity.FailedLoginCount = 0
 	identity.LastFailedLoginTime = time.Time{}
-	
+
 	if err = s.identityRepo.Update(ctx, identity); err != nil {
 		return nil, errors.InternalErr(err)
 	}

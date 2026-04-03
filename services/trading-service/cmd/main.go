@@ -158,7 +158,7 @@ func main() {
 				},
 				OnStop: func(ctx context.Context) error {
 					c.Stop()
-          return nil
+					return nil
 				},
 			})
 		}),

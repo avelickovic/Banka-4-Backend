@@ -88,7 +88,7 @@ type LoanInstallment struct {
 	InterestRate      float64 `gorm:"not null"`
 
 	TransactionID *uint
-	Transaction Transaction
+	Transaction   Transaction
 
 	DueDate time.Time `gorm:"not null;index"`
 	PaidAt  *time.Time

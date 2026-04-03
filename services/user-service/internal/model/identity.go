@@ -1,8 +1,8 @@
 package model
 
 import (
-	"time"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
+	"time"
 )
 
 type Identity struct {
@@ -14,7 +14,7 @@ type Identity struct {
 	Active       bool              `gorm:"default:false"`
 
 	LastFailedLoginTime time.Time
-	FailedLoginCount    uint       `gorm:"default:0"`
+	FailedLoginCount    uint `gorm:"default:0"`
 
 	ActivationTokens []ActivationToken `gorm:"foreignKey:IdentityID"`
 	ResetTokens      []ResetToken      `gorm:"foreignKey:IdentityID"`

@@ -162,7 +162,7 @@ func (s *PortfolioService) GetPortfolio(ctx context.Context, identityID uint, ow
 
 		const taxRate = 0.15
 		// TODO: calculate TaxAmount
-		
+
 		profit := (agg.currentPrice - avgBuyPrice) * agg.netAmount
 
 		tax := 0.0

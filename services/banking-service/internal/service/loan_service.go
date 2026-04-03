@@ -37,14 +37,14 @@ func NewLoanService(
 	mailer Mailer,
 ) *LoanService {
 	return &LoanService{
-		accountRepo:  accountRepo,
-		loanTypeRepo: loanTypeRepo,
+		accountRepo:     accountRepo,
+		loanTypeRepo:    loanTypeRepo,
 		loanRequestRepo: loanRequestRepo,
-		loanRepo:     loanRepo,
-		txProcessor:  txProcessor,
-		txManager:    txManager,
-		userClient:   userClient,
-		mailer:       mailer,
+		loanRepo:        loanRepo,
+		txProcessor:     txProcessor,
+		txManager:       txManager,
+		userClient:      userClient,
+		mailer:          mailer,
 	}
 }
 

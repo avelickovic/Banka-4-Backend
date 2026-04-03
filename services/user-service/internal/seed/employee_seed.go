@@ -282,18 +282,17 @@ func Run(db *gorm.DB) error {
 		} else if err != nil {
 			return err
 		} else if !adminActuary.IsSupervisor || adminActuary.IsAgent || adminActuary.NeedApproval || adminActuary.Limit != 0 || adminActuary.UsedLimit != 0 {
-				adminActuary.IsAgent = false
-				adminActuary.IsSupervisor = true
-				adminActuary.Limit = 0
-				adminActuary.UsedLimit = 0
-				adminActuary.NeedApproval = false
+			adminActuary.IsAgent = false
+			adminActuary.IsSupervisor = true
+			adminActuary.Limit = 0
+			adminActuary.UsedLimit = 0
+			adminActuary.NeedApproval = false
 			if err := db.Save(&adminActuary).Error; err != nil {
 				return err
 			}
 		}
 
 	}
-
 
 	return nil
 }

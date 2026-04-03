@@ -271,7 +271,7 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, id uint, req *dto.
 		return nil, err
 	}
 	employee.ActuaryInfo = actuaryInfo
-  
+
 	if err := s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
 		if identityChanged {
 			if err := s.identityRepo.Update(txCtx, identity); err != nil {

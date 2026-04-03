@@ -8,8 +8,8 @@ const (
 )
 
 type OrderOwnership struct {
-	OrderOwnershipID uint      `gorm:"primaryKey;autoIncrement"`
-	OrderID          uint      `gorm:"not null;index"`
+	OrderOwnershipID uint `gorm:"primaryKey;autoIncrement"`
+	OrderID          uint `gorm:"not null;index"`
 	Order            Order
 	IdentityID       uint      `gorm:"not null;index"`
 	OwnerType        OwnerType `gorm:"not null;size:10"`

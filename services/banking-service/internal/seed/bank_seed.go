@@ -120,7 +120,7 @@ var loanTypes = []model.LoanType{
 }
 
 func getUintPointer(value uint) *uint {
-    return &value
+	return &value
 }
 
 var accounts = []struct {
