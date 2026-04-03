@@ -259,7 +259,7 @@ func (s *LoanService) ApproveLoanRequest(ctx context.Context, id uint) error {
 		}
 	}
 
-	return s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+	if err := s.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
 		transaction := &model.Transaction{
 			PayerAccountNumber:     bankAccountNumber,
 			RecipientAccountNumber: request.AccountNumber,
@@ -307,7 +307,23 @@ func (s *LoanService) ApproveLoanRequest(ctx context.Context, id uint) error {
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	client, err := s.userClient.GetClientByID(ctx, request.ClientID)
+	if err != nil {
+		return errors.ServiceUnavailableErr(err)
+	}
+	if client == nil {
+		return errors.InternalErr(fmt.Errorf("client not found in user service"))
+	}
+
+	if err := s.mailer.Send(client.Email, "Loan request approved", "Your loan request has been approved."); err != nil {
+		log.Printf("failed to send loan approval notification email to client_id=%d: %v", client.Id, err)
+	}
+
+	return nil
 }
 
 func (s *LoanService) RejectLoanRequest(ctx context.Context, id uint) error {

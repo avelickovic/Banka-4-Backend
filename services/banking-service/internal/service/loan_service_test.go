@@ -527,6 +527,25 @@ func TestApproveLoanRequest(t *testing.T) {
 			id:         1,
 			expectErr:  true,
 		},
+		{
+			name:     "user client error on approval",
+			loanRepo: &fakeLoanRepo{},
+			loanRequestRepo: &fakeLoanRequestRepo{
+				request: &model.LoanRequest{
+					ID:                 1,
+					Status:             model.LoanRequestPending,
+					AccountNumber:      "client-account",
+					Amount:             100000,
+					CalculatedRate:     5.5,
+					MonthlyInstallment: 4409.57,
+					RepaymentPeriod:    24,
+				},
+			},
+			userClient: &fakeUserClient{clientErr: fmt.Errorf("user service unavailable")},
+			mailer:     &fakeMailer{},
+			id:         1,
+			expectErr:  true,
+		},
 	}
 
 	for _, tt := range tests {
