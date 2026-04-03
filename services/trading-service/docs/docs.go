@@ -323,6 +323,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/listings/forex/{listingId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves detailed information for a specific forex pair by its listing ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listings"
+                ],
+                "summary": "Get forex details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Listing ID",
+                        "name": "listingId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ForexDetailedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/listings/futures": {
             "get": {
                 "produces": [
@@ -440,6 +495,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/listings/futures/{listingId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves detailed information for a specific futures contract by its listing ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listings"
+                ],
+                "summary": "Get futures details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Listing ID",
+                        "name": "listingId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FutureDetailedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/listings/options": {
             "get": {
                 "produces": [
@@ -550,6 +660,61 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/listings/options/{listingId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves detailed information for a specific option by its listing ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listings"
+                ],
+                "summary": "Get option details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Listing ID",
+                        "name": "listingId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OptionDetailedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/errors.AppError"
                         }
@@ -1087,6 +1252,50 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ForexDetailedResponse": {
+            "type": "object",
+            "properties": {
+                "ask": {
+                    "type": "number"
+                },
+                "base": {
+                    "type": "string"
+                },
+                "bid": {
+                    "type": "number"
+                },
+                "change": {
+                    "type": "number"
+                },
+                "forexPairId": {
+                    "type": "integer"
+                },
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DailyPriceResponse"
+                    }
+                },
+                "initialMarginCost": {
+                    "type": "number"
+                },
+                "maintenanceMargin": {
+                    "type": "number"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "quote": {
+                    "type": "string"
+                },
+                "ticker": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.ForexResponse": {
             "type": "object",
             "properties": {
@@ -1115,6 +1324,59 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "quote": {
+                    "type": "string"
+                },
+                "ticker": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.FutureDetailedResponse": {
+            "type": "object",
+            "properties": {
+                "ask": {
+                    "type": "number"
+                },
+                "bid": {
+                    "type": "number"
+                },
+                "change": {
+                    "type": "number"
+                },
+                "contract_size": {
+                    "type": "number"
+                },
+                "contract_unit": {
+                    "type": "string"
+                },
+                "exchange": {
+                    "type": "string"
+                },
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DailyPriceResponse"
+                    }
+                },
+                "initial_margin_cost": {
+                    "type": "number"
+                },
+                "listing_id": {
+                    "type": "integer"
+                },
+                "maintenance_margin": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "settlement_date": {
                     "type": "string"
                 },
                 "ticker": {
@@ -1188,6 +1450,65 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.OptionDetailedResponse": {
+            "type": "object",
+            "properties": {
+                "ask": {
+                    "type": "number"
+                },
+                "bid": {
+                    "type": "number"
+                },
+                "change": {
+                    "type": "number"
+                },
+                "exchange": {
+                    "type": "string"
+                },
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DailyPriceResponse"
+                    }
+                },
+                "implied_volatility": {
+                    "type": "number"
+                },
+                "initial_margin_cost": {
+                    "type": "number"
+                },
+                "listing_id": {
+                    "type": "integer"
+                },
+                "maintenance_margin": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "open_interest": {
+                    "type": "integer"
+                },
+                "option_type": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "settlement_date": {
+                    "type": "string"
+                },
+                "strike": {
+                    "type": "number"
+                },
+                "ticker": {
+                    "type": "string"
+                },
+                "volume": {
                     "type": "integer"
                 }
             }

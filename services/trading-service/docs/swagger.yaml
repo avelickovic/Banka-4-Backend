@@ -87,6 +87,35 @@ definitions:
       trading_enabled:
         type: boolean
     type: object
+  dto.ForexDetailedResponse:
+    properties:
+      ask:
+        type: number
+      base:
+        type: string
+      bid:
+        type: number
+      change:
+        type: number
+      forexPairId:
+        type: integer
+      history:
+        items:
+          $ref: '#/definitions/dto.DailyPriceResponse'
+        type: array
+      initialMarginCost:
+        type: number
+      maintenanceMargin:
+        type: number
+      price:
+        type: number
+      quote:
+        type: string
+      ticker:
+        type: string
+      volume:
+        type: integer
+    type: object
   dto.ForexResponse:
     properties:
       ask:
@@ -106,6 +135,41 @@ definitions:
       price:
         type: number
       quote:
+        type: string
+      ticker:
+        type: string
+      volume:
+        type: integer
+    type: object
+  dto.FutureDetailedResponse:
+    properties:
+      ask:
+        type: number
+      bid:
+        type: number
+      change:
+        type: number
+      contract_size:
+        type: number
+      contract_unit:
+        type: string
+      exchange:
+        type: string
+      history:
+        items:
+          $ref: '#/definitions/dto.DailyPriceResponse'
+        type: array
+      initial_margin_cost:
+        type: number
+      listing_id:
+        type: integer
+      maintenance_margin:
+        type: number
+      name:
+        type: string
+      price:
+        type: number
+      settlement_date:
         type: string
       ticker:
         type: string
@@ -154,6 +218,45 @@ definitions:
       page_size:
         type: integer
       total:
+        type: integer
+    type: object
+  dto.OptionDetailedResponse:
+    properties:
+      ask:
+        type: number
+      bid:
+        type: number
+      change:
+        type: number
+      exchange:
+        type: string
+      history:
+        items:
+          $ref: '#/definitions/dto.DailyPriceResponse'
+        type: array
+      implied_volatility:
+        type: number
+      initial_margin_cost:
+        type: number
+      listing_id:
+        type: integer
+      maintenance_margin:
+        type: number
+      name:
+        type: string
+      open_interest:
+        type: integer
+      option_type:
+        type: string
+      price:
+        type: number
+      settlement_date:
+        type: string
+      strike:
+        type: number
+      ticker:
+        type: string
+      volume:
         type: integer
     type: object
   dto.OptionResponse:
@@ -647,6 +750,42 @@ paths:
       summary: List forex pairs
       tags:
       - listings
+  /api/listings/forex/{listingId}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed information for a specific forex pair by its
+        listing ID.
+      parameters:
+      - description: Listing ID
+        in: path
+        name: listingId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ForexDetailedResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Get forex details
+      tags:
+      - listings
   /api/listings/futures:
     get:
       parameters:
@@ -724,6 +863,42 @@ paths:
       summary: List futures contracts
       tags:
       - listings
+  /api/listings/futures/{listingId}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed information for a specific futures contract
+        by its listing ID.
+      parameters:
+      - description: Listing ID
+        in: path
+        name: listingId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.FutureDetailedResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Get futures details
+      tags:
+      - listings
   /api/listings/options:
     get:
       parameters:
@@ -799,6 +974,42 @@ paths:
           schema:
             $ref: '#/definitions/errors.AppError'
       summary: List options
+      tags:
+      - listings
+  /api/listings/options/{listingId}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed information for a specific option by its listing
+        ID.
+      parameters:
+      - description: Listing ID
+        in: path
+        name: listingId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OptionDetailedResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Get option details
       tags:
       - listings
   /api/listings/stock/listingId:
