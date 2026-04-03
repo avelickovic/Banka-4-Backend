@@ -76,7 +76,7 @@ func Load() *Configuration {
 
 	return &Configuration{
 		Env:                GetOrDefault("ENV", "development"),
-		Port:               GetOrDefault("PORT", "8081"),
+		Port:               GetOrDefault("PORT", "8082"),
 		JWTSecret:          GetOrThrow("JWT_SECRET"),
 		UserServiceAddr:    GetOrDefault("USER_SERVICE_ADDR", "localhost:50051"),
 		UserServiceBaseURL: GetOrDefault("USER_SERVICE_BASE_URL", "http://localhost:8080"),
@@ -91,7 +91,7 @@ func Load() *Configuration {
 		},
 		URLs: URLConfig{
 			FrontendBaseURL: GetOrDefault("FRONTEND_BASE_URL", "http://localhost:5173"),
-			BackendBaseURL:  GetOrDefault("BACKEND_BASE_URL", "http://localhost:8081"),
+			BackendBaseURL:  GetOrDefault("BACKEND_BASE_URL", "http://localhost:8082"),
 		},
 		ExchangeRateAPIKey: GetOrThrow("EXCHANGE_RATE_API_KEY"),
 	}

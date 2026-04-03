@@ -7,6 +7,7 @@ type Payment struct {
 	ReferenceNumber string
 	PaymentCode     string
 	Purpose         string
+	FailedAttempts  int `gorm:"not null;default:0"`
 
 	Transaction Transaction
 }

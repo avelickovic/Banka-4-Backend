@@ -72,36 +72,36 @@ services:
       start_period: 30s
     working_dir: /app/banking-service
 
-#  trading_service:
-#    build:
-#      context: .
-#      dockerfile: docker/Dockerfile
-#      args:
-#        SERVICE: trading-service
-#    ports:
-#      - "${TRADING_SERVICE_PORT}:${TRADING_SERVICE_PORT}"
-#    env_file: .env
-#    environment:
-#      DB_HOST: ${DB_HOST}
-#      DB_PORT: ${DB_PORT}
-#      DB_USER: ${DB_USER}
-#      DB_PASS: ${DB_PASS}
-#      DB_NAME: ${DB_NAME}
-#      PORT: ${TRADING_SERVICE_PORT}
-#      USER_SERVICE_ADDR: user_service:50051
-#      USER_SERVICE_BASE_URL: http://user_service:${PORT}
-#    depends_on:
-#      user_service_db:
-#        condition: service_healthy
-#      user_service:
-#        condition: service_healthy
-#    healthcheck:
-#      test: curl -f http://localhost:${TRADING_SERVICE_PORT}/api/health || exit 1
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-#      start_period: 30s
-#    working_dir: /app/trading-service
+  trading_service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: trading-service
+    ports:
+      - "${TRADING_SERVICE_PORT}:${TRADING_SERVICE_PORT}"
+    env_file: .env
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+      PORT: ${TRADING_SERVICE_PORT}
+      USER_SERVICE_ADDR: user_service:50051
+      USER_SERVICE_BASE_URL: http://user_service:${PORT}
+    depends_on:
+      user_service_db:
+        condition: service_healthy
+      user_service:
+        condition: service_healthy
+    healthcheck:
+      test: curl -f http://localhost:${TRADING_SERVICE_PORT}/api/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    working_dir: /app/trading-service
 
   maildev:
     image: maildev/maildev:latest
