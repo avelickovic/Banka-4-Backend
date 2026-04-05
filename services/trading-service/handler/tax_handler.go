@@ -30,7 +30,7 @@ func NewTaxHandler(taxService *service.TaxService, userClient client.UserService
 // @Param last_name query string false "Filter by last name"
 // @Param page query int false "Page number" minimum(1)
 // @Param page_size query int false "Page size" minimum(1) maximum(100)
-// @Success 200 {object} response.ListTaxUsersResponse
+// @Success 200 {object} dto.ListTaxUsersResponse
 // @Failure 400 {object} errors.AppError
 // @Failure 401 {object} errors.AppError
 // @Failure 403 {object} errors.AppError
@@ -120,7 +120,7 @@ func (h *TaxHandler) ListTaxUsers(c *gin.Context) {
 // @Description Runs the tax collection process for all users. Restricted to authorized personnel.
 // @Tags tax
 // @Produce json
-// @Success 200 {object} response.CollectTaxesResponse
+// @Success 200 {object} dto.CollectTaxesResponse
 // @Failure 401 {object} errors.AppError
 // @Failure 403 {object} errors.AppError
 // @Security BearerAuth
