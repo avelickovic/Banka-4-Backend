@@ -7,6 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/logging"
 )
@@ -45,6 +47,8 @@ type AppError struct {
 	Err       error     `json:"-"`
 }
 
+
+
 func (e *AppError) Error() string {
 	if e.Err != nil {
 		return e.Err.Error()
@@ -64,6 +68,31 @@ func NewAppError(code int, message string, err error) *AppError {
 		Message:   message,
 		Timestamp: time.Now(),
 		Err:       err,
+	}
+}
+
+func MapGrpcToHttpError(err error) error {
+	var appErr *AppError
+	if !stderrors.As(err, &appErr) {
+		return status.Errorf(codes.Internal, "internal error: %v", err)
+	}
+	switch appErr.Code {
+	case http.StatusNotFound:
+		return status.Error(codes.NotFound, appErr.Message)
+	case http.StatusBadRequest:
+		return status.Error(codes.InvalidArgument, appErr.Message)
+	case http.StatusUnauthorized:
+		return status.Error(codes.Unauthenticated, appErr.Message)
+	case http.StatusForbidden:
+		return status.Error(codes.PermissionDenied, appErr.Message)
+	case http.StatusConflict:
+		return status.Error(codes.AlreadyExists, appErr.Message)
+	case http.StatusServiceUnavailable:
+		return status.Error(codes.Unavailable, appErr.Message)
+	case http.StatusTooManyRequests:
+		return status.Error(codes.ResourceExhausted, appErr.Message)
+	default:
+		return status.Error(codes.Internal, appErr.Message)
 	}
 }
 

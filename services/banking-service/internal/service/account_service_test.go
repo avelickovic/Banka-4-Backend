@@ -42,6 +42,10 @@ func (f *fakeAccountRepo) AccountNumberExists(_ context.Context, _ string) (bool
 	return f.accountNumberExists, nil
 }
 
+func (r *fakeAccountRepo) FindByClientID(_ context.Context, _ uint) ([]model.Account, error) {
+	return r.accounts, r.findErr
+}
+
 func (f *fakeAccountRepo) NameExistsForClient(_ context.Context, _ uint, _ string, _ string) (bool, error) {
 	if f.nameExistsErr != nil {
 		return false, f.nameExistsErr

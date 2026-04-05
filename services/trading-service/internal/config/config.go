@@ -38,6 +38,7 @@ type Configuration struct {
 	URLs               URLConfig
 	ExchangeRateAPIKey string
 	FinnhubAPIKey      string
+	TaxAccountNumber   string
 }
 
 func GetAsIntOrDefault(env string, defaultValue int) int {
@@ -94,5 +95,6 @@ func Load() *Configuration {
 			BackendBaseURL:  GetOrDefault("BACKEND_BASE_URL", "http://localhost:8082"),
 		},
 		ExchangeRateAPIKey: GetOrThrow("EXCHANGE_RATE_API_KEY"),
+		TaxAccountNumber:   GetOrDefault("TAX_ACCOUNT_NUMBER", "444000000000000008"),
 	}
 }

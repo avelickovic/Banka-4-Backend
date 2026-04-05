@@ -53,6 +53,10 @@ func (f *fakePaymentRepo) FindByAccount(_ context.Context, _ string, _ *dto.Paym
 	return f.payments, f.total, f.findAccErr
 }
 
+func (r *fakePaymentAccountRepo) FindByClientID(_ context.Context, _ uint) ([]model.Account, error) {
+	return nil, nil
+}
+
 func (f *fakePaymentRepo) FindByClient(_ context.Context, _ uint, _ *dto.PaymentFilters) ([]model.Payment, int64, error) {
 	return f.allPayments, int64(len(f.allPayments)), f.findAllErr
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/handler"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client"
+	clientgrpc "github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client/grpc"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/config"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/job"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
@@ -18,7 +19,6 @@ import (
 	"go.uber.org/zap"
 
 	"go.uber.org/fx"
-	"google.golang.org/grpc"
 	"gorm.io/gorm"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
@@ -47,15 +47,18 @@ func main() {
 				return jwt.NewJWTVerifier(cfg.JWTSecret)
 			},
 			client.NewUserServiceConnection,
-			func(conn *grpc.ClientConn) pb.PermissionServiceClient {
-				return pb.NewPermissionServiceClient(conn)
+			func(conn *client.UserConn) pb.PermissionServiceClient {
+				return pb.NewPermissionServiceClient(conn.ClientConn)
 			},
-			func(conn *grpc.ClientConn) pb.UserServiceClient {
-				return pb.NewUserServiceClient(conn)
+			func(conn *client.UserConn) client.UserServiceClient {
+				return clientgrpc.NewUserServiceClient(conn)
 			},
 			client.NewBankingServiceConnection,
 			func(conn *client.BankingConn) pb.BankingServiceClient {
 				return pb.NewBankingServiceClient(conn.ClientConn)
+			},
+			func(conn *client.BankingConn) client.BankingClient {
+				return clientgrpc.NewBankingServiceClient(conn)
 			},
 			func(c pb.PermissionServiceClient) auth.PermissionProvider {
 				return permission.NewGrpcPermissionProvider(c)
@@ -66,7 +69,6 @@ func main() {
 				return client.NewExchangeRateClient(cfg.ExchangeRateAPIKey)
 			},
 			service.NewForexService,
-
 			func(cfg *config.Configuration) *client.StockClient {
 				return client.NewStockClient(cfg.FinnhubAPIKey)
 			},
@@ -88,6 +90,10 @@ func main() {
 			repository.NewOrderTransactionRepository,
 			service.NewOrderService,
 			handler.NewOrderHandler,
+			repository.NewTaxRepository,
+			service.NewTaxService,
+			handler.NewTaxHandler,
+			service.NewTaxScheduler,
 		),
 		fx.Invoke(func(cfg *config.Configuration) error {
 			return logging.Init(cfg.Env)
@@ -112,6 +118,8 @@ func main() {
 				&model.OrderTransaction{},
 				&model.ForexPair{},
 				&model.FuturesContract{},
+				&model.AccumulatedTax{},
+				&model.TaxCollection{},
 			)
 		}),
 		fx.Invoke(func(lc fx.Lifecycle, svc *service.StockService) {
@@ -130,7 +138,22 @@ func main() {
 		fx.Invoke(func(db *gorm.DB) error {
 			return seed.SeedFuturesContracts(db)
 		}),
+		fx.Invoke(func(db *gorm.DB) error {
+			return seed.AccumulatedTax(db)
+		}),
 		fx.Invoke(server.NewServer),
+		fx.Invoke(func(lc fx.Lifecycle, scheduler *service.TaxScheduler) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					scheduler.Start()
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					scheduler.Stop()
+					return nil
+				},
+			})
+		}),
 		fx.Invoke(func(lifecycle fx.Lifecycle, forexService *service.ForexService) {
 			lifecycle.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {

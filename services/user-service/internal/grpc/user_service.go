@@ -3,6 +3,8 @@ package grpc
 import (
 	"context"
 
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/dto"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/service"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -12,12 +14,16 @@ import (
 
 type UserService struct {
 	pb.UnimplementedUserServiceServer
-	clientRepo   repository.ClientRepository
-	employeeRepo repository.EmployeeRepository
+	clientRepo     repository.ClientRepository
+	employeeRepo   repository.EmployeeRepository
+	clientService  *service.ClientService
+	actuaryService *service.ActuaryService
 }
 
-func NewUserService(clientRepo repository.ClientRepository, employeeRepo repository.EmployeeRepository) *UserService {
-	return &UserService{clientRepo: clientRepo, employeeRepo: employeeRepo}
+func NewUserService(clientRepo repository.ClientRepository, employeeRepo repository.EmployeeRepository, clientService *service.ClientService,
+	actuaryService *service.ActuaryService) *UserService {
+	return &UserService{clientRepo: clientRepo, employeeRepo: employeeRepo, clientService: clientService,
+		actuaryService: actuaryService}
 }
 
 func (s *UserService) GetClientById(ctx context.Context, req *pb.GetClientByIdRequest) (*pb.GetClientByIdResponse, error) {
@@ -58,4 +64,67 @@ func (s *UserService) GetEmployeeById(ctx context.Context, req *pb.GetEmployeeBy
 	}
 
 	return resp, nil
+}
+func (s *UserService) GetAllClients(ctx context.Context, req *pb.GetAllClientsRequest) (*pb.GetAllClientsResponse, error) {
+	query := &dto.ListClientsQuery{
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Page:      int(req.Page),
+		PageSize:  int(req.PageSize),
+	}
+
+	result, err := s.clientService.GetAllClients(ctx, query)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to fetch clients: %v", err)
+	}
+
+	pbClients := make([]*pb.ClientResponse, len(result.Data))
+	for i, c := range result.Data {
+		pbClients[i] = &pb.ClientResponse{
+			Id:        uint64(c.Id),
+			FirstName: c.FirstName,
+			LastName:  c.LastName,
+			Email:     c.Email,
+		}
+	}
+
+	return &pb.GetAllClientsResponse{
+		Clients:    pbClients,
+		Total:      result.Total,
+		Page:       int32(result.Page),
+		PageSize:   int32(result.PageSize),
+		TotalPages: int32(result.TotalPages),
+	}, nil
+}
+
+func (s *UserService) GetAllActuaries(ctx context.Context, req *pb.GetAllActuariesRequest) (*pb.GetAllActuariesResponse, error) {
+	query := &dto.ListActuariesQuery{
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Page:      int(req.Page),
+		PageSize:  int(req.PageSize),
+	}
+
+	result, err := s.actuaryService.GetAllActuaries(ctx, query)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to fetch actuaries: %v", err)
+	}
+
+	pbActuaries := make([]*pb.ActuaryResponse, len(result.Data))
+	for i, a := range result.Data {
+		pbActuaries[i] = &pb.ActuaryResponse{
+			Id:        uint64(a.ID),
+			FirstName: a.FirstName,
+			LastName:  a.LastName,
+			Email:     a.Email,
+		}
+	}
+
+	return &pb.GetAllActuariesResponse{
+		Actuaries:  pbActuaries,
+		Total:      result.Total,
+		Page:       int32(result.Page),
+		PageSize:   int32(result.PageSize),
+		TotalPages: int32(result.TotalPages),
+	}, nil
 }

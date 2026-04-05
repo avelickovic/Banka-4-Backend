@@ -37,6 +37,10 @@ func (r *fakeTransferAccountRepo) FindByAccountNumber(_ context.Context, account
 	return &copy, nil
 }
 
+func (f *fakeTransferAccountRepo) FindByClientID(ctx context.Context, clientID uint) ([]model.Account, error) {
+	return nil, nil
+}
+
 func (r *fakeTransferAccountRepo) GetByAccountNumber(ctx context.Context, accountNumber string) (*model.Account, error) {
 	return r.FindByAccountNumber(ctx, accountNumber)
 }

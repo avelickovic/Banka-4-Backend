@@ -19,8 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BankingService_GetAccountByNumber_FullMethodName     = "/banking.v1.BankingService/GetAccountByNumber"
-	BankingService_ExecuteTradeSettlement_FullMethodName = "/banking.v1.BankingService/ExecuteTradeSettlement"
+	BankingService_GetAccountByNumber_FullMethodName               = "/banking.v1.BankingService/GetAccountByNumber"
+	BankingService_CreatePaymentWithoutVerification_FullMethodName = "/banking.v1.BankingService/CreatePaymentWithoutVerification"
+	BankingService_GetAccountsByClientID_FullMethodName            = "/banking.v1.BankingService/GetAccountsByClientID"
+	BankingService_ConvertCurrency_FullMethodName                  = "/banking.v1.BankingService/ConvertCurrency"
+	BankingService_ExecuteTradeSettlement_FullMethodName           = "/banking.v1.BankingService/ExecuteTradeSettlement"
 )
 
 // BankingServiceClient is the client API for BankingService service.
@@ -28,6 +31,9 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BankingServiceClient interface {
 	GetAccountByNumber(ctx context.Context, in *GetAccountByNumberRequest, opts ...grpc.CallOption) (*GetAccountByNumberResponse, error)
+	CreatePaymentWithoutVerification(ctx context.Context, in *CreatePaymentRequest, opts ...grpc.CallOption) (*CreatePaymentResponse, error)
+	GetAccountsByClientID(ctx context.Context, in *GetAccountsByClientIDRequest, opts ...grpc.CallOption) (*GetAccountsByClientIDResponse, error)
+	ConvertCurrency(ctx context.Context, in *ConvertCurrencyRequest, opts ...grpc.CallOption) (*ConvertCurrencyResponse, error)
 	ExecuteTradeSettlement(ctx context.Context, in *ExecuteTradeSettlementRequest, opts ...grpc.CallOption) (*ExecuteTradeSettlementResponse, error)
 }
 
@@ -49,6 +55,36 @@ func (c *bankingServiceClient) GetAccountByNumber(ctx context.Context, in *GetAc
 	return out, nil
 }
 
+func (c *bankingServiceClient) CreatePaymentWithoutVerification(ctx context.Context, in *CreatePaymentRequest, opts ...grpc.CallOption) (*CreatePaymentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreatePaymentResponse)
+	err := c.cc.Invoke(ctx, BankingService_CreatePaymentWithoutVerification_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankingServiceClient) GetAccountsByClientID(ctx context.Context, in *GetAccountsByClientIDRequest, opts ...grpc.CallOption) (*GetAccountsByClientIDResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAccountsByClientIDResponse)
+	err := c.cc.Invoke(ctx, BankingService_GetAccountsByClientID_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankingServiceClient) ConvertCurrency(ctx context.Context, in *ConvertCurrencyRequest, opts ...grpc.CallOption) (*ConvertCurrencyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConvertCurrencyResponse)
+	err := c.cc.Invoke(ctx, BankingService_ConvertCurrency_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *bankingServiceClient) ExecuteTradeSettlement(ctx context.Context, in *ExecuteTradeSettlementRequest, opts ...grpc.CallOption) (*ExecuteTradeSettlementResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExecuteTradeSettlementResponse)
@@ -64,6 +100,9 @@ func (c *bankingServiceClient) ExecuteTradeSettlement(ctx context.Context, in *E
 // for forward compatibility.
 type BankingServiceServer interface {
 	GetAccountByNumber(context.Context, *GetAccountByNumberRequest) (*GetAccountByNumberResponse, error)
+	CreatePaymentWithoutVerification(context.Context, *CreatePaymentRequest) (*CreatePaymentResponse, error)
+	GetAccountsByClientID(context.Context, *GetAccountsByClientIDRequest) (*GetAccountsByClientIDResponse, error)
+	ConvertCurrency(context.Context, *ConvertCurrencyRequest) (*ConvertCurrencyResponse, error)
 	ExecuteTradeSettlement(context.Context, *ExecuteTradeSettlementRequest) (*ExecuteTradeSettlementResponse, error)
 	mustEmbedUnimplementedBankingServiceServer()
 }
@@ -77,6 +116,15 @@ type UnimplementedBankingServiceServer struct{}
 
 func (UnimplementedBankingServiceServer) GetAccountByNumber(context.Context, *GetAccountByNumberRequest) (*GetAccountByNumberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountByNumber not implemented")
+}
+func (UnimplementedBankingServiceServer) CreatePaymentWithoutVerification(context.Context, *CreatePaymentRequest) (*CreatePaymentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreatePaymentWithoutVerification not implemented")
+}
+func (UnimplementedBankingServiceServer) GetAccountsByClientID(context.Context, *GetAccountsByClientIDRequest) (*GetAccountsByClientIDResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAccountsByClientID not implemented")
+}
+func (UnimplementedBankingServiceServer) ConvertCurrency(context.Context, *ConvertCurrencyRequest) (*ConvertCurrencyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConvertCurrency not implemented")
 }
 func (UnimplementedBankingServiceServer) ExecuteTradeSettlement(context.Context, *ExecuteTradeSettlementRequest) (*ExecuteTradeSettlementResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExecuteTradeSettlement not implemented")
@@ -120,6 +168,60 @@ func _BankingService_GetAccountByNumber_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BankingService_CreatePaymentWithoutVerification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePaymentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).CreatePaymentWithoutVerification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_CreatePaymentWithoutVerification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).CreatePaymentWithoutVerification(ctx, req.(*CreatePaymentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankingService_GetAccountsByClientID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccountsByClientIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).GetAccountsByClientID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_GetAccountsByClientID_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).GetAccountsByClientID(ctx, req.(*GetAccountsByClientIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankingService_ConvertCurrency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConvertCurrencyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).ConvertCurrency(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_ConvertCurrency_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).ConvertCurrency(ctx, req.(*ConvertCurrencyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BankingService_ExecuteTradeSettlement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ExecuteTradeSettlementRequest)
 	if err := dec(in); err != nil {
@@ -148,6 +250,18 @@ var BankingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAccountByNumber",
 			Handler:    _BankingService_GetAccountByNumber_Handler,
+		},
+		{
+			MethodName: "CreatePaymentWithoutVerification",
+			Handler:    _BankingService_CreatePaymentWithoutVerification_Handler,
+		},
+		{
+			MethodName: "GetAccountsByClientID",
+			Handler:    _BankingService_GetAccountsByClientID_Handler,
+		},
+		{
+			MethodName: "ConvertCurrency",
+			Handler:    _BankingService_ConvertCurrency_Handler,
 		},
 		{
 			MethodName: "ExecuteTradeSettlement",

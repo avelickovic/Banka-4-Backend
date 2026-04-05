@@ -160,3 +160,19 @@ func (r *accountRepository) Update(ctx context.Context, account *model.Account) 
 	db := db.DBFromContext(ctx, r.db)
 	return db.WithContext(ctx).Save(account).Error
 }
+
+func (r *accountRepository) FindByClientID(ctx context.Context, clientID uint) ([]model.Account, error) {
+	db := db.DBFromContext(ctx, r.db)
+
+	var accounts []model.Account
+	err := db.WithContext(ctx).
+		Preload("Currency").
+		Where("client_id = ?", clientID).
+		Find(&accounts).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
