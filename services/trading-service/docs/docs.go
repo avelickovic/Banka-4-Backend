@@ -15,6 +15,106 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/exchange": {
+            "get": {
+                "description": "Returns a paginated list of all stock exchanges",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exchange"
+                ],
+                "summary": "Get all exchanges",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/exchange/{micCode}/toggle": {
+            "patch": {
+                "description": "Enables or disables trading time enforcement for a specific exchange (for testing purposes)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exchange"
+                ],
+                "summary": "Toggle trading enabled for an exchange",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Exchange MIC code",
+                        "name": "micCode",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ExchangeResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/health": {
             "get": {
                 "description": "Returns service health status",
@@ -37,6 +137,563 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/orders": {
+            "post": {
+                "description": "Creates a buy or sell order for a listing",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Create a new order",
+                "parameters": [
+                    {
+                        "description": "Order details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateOrderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OrderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{id}/approve": {
+            "patch": {
+                "description": "Supervisor approves a pending order",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Approve a pending order",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OrderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{id}/cancel": {
+            "patch": {
+                "description": "Cancel a pending or approved order that hasn't been fully executed",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Cancel an order",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OrderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{id}/decline": {
+            "patch": {
+                "description": "Supervisor declines a pending order",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Decline a pending order",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OrderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tax/collect": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Runs the tax collection process for all users. Restricted to authorized personnel.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tax"
+                ],
+                "summary": "Trigger tax collection",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CollectTaxesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tax/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a paginated list of clients and/or actuaries with their total tax owed in RSD. Filterable by user type, first name, and last name.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tax"
+                ],
+                "summary": "List users with tax information",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by user type (client, actuary)",
+                        "name": "userType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by first name",
+                        "name": "first_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by last name",
+                        "name": "last_name",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListTaxUsersResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.CollectTaxesResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CreateOrderRequest": {
+            "type": "object",
+            "required": [
+                "account_number",
+                "direction",
+                "listing_id",
+                "order_type",
+                "quantity"
+            ],
+            "properties": {
+                "account_number": {
+                    "type": "string"
+                },
+                "all_or_none": {
+                    "type": "boolean"
+                },
+                "direction": {
+                    "enum": [
+                        "BUY",
+                        "SELL"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.OrderDirection"
+                        }
+                    ]
+                },
+                "limit_value": {
+                    "type": "number"
+                },
+                "listing_id": {
+                    "type": "integer"
+                },
+                "margin": {
+                    "type": "boolean"
+                },
+                "order_type": {
+                    "enum": [
+                        "MARKET",
+                        "LIMIT",
+                        "STOP",
+                        "STOP_LIMIT"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.OrderType"
+                        }
+                    ]
+                },
+                "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "stop_value": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.ExchangeResponse": {
+            "type": "object",
+            "properties": {
+                "acronym": {
+                    "type": "string"
+                },
+                "close_time": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "exchange_id": {
+                    "type": "integer"
+                },
+                "mic_code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "open_time": {
+                    "type": "string"
+                },
+                "polity": {
+                    "type": "string"
+                },
+                "time_zone": {
+                    "type": "integer"
+                },
+                "trading_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.ListTaxUsersResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.UserTaxEntry"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.OrderResponse": {
+            "type": "object",
+            "properties": {
+                "account_number": {
+                    "type": "string"
+                },
+                "after_hours": {
+                    "type": "boolean"
+                },
+                "all_or_none": {
+                    "type": "boolean"
+                },
+                "approved_by": {
+                    "type": "integer"
+                },
+                "contract_size": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "direction": {
+                    "$ref": "#/definitions/model.OrderDirection"
+                },
+                "is_done": {
+                    "type": "boolean"
+                },
+                "limit_value": {
+                    "type": "number"
+                },
+                "listing_id": {
+                    "type": "integer"
+                },
+                "listing_name": {
+                    "type": "string"
+                },
+                "margin": {
+                    "type": "boolean"
+                },
+                "order_id": {
+                    "type": "integer"
+                },
+                "order_type": {
+                    "$ref": "#/definitions/model.OrderType"
+                },
+                "price_per_unit": {
+                    "type": "number"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "remaining_portions": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.OrderStatus"
+                },
+                "stop_value": {
+                    "type": "number"
+                },
+                "ticker": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.UserTaxEntry": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "taxOwedRsd": {
+                    "type": "number"
+                },
+                "userType": {
+                    "type": "string"
+                }
+            }
+        },
+        "errors.AppError": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.OrderDirection": {
+            "type": "string",
+            "enum": [
+                "BUY",
+                "SELL"
+            ],
+            "x-enum-varnames": [
+                "OrderDirectionBuy",
+                "OrderDirectionSell"
+            ]
+        },
+        "model.OrderStatus": {
+            "type": "string",
+            "enum": [
+                "PENDING",
+                "APPROVED",
+                "DECLINED"
+            ],
+            "x-enum-varnames": [
+                "OrderStatusPending",
+                "OrderStatusApproved",
+                "OrderStatusDeclined"
+            ]
+        },
+        "model.OrderType": {
+            "type": "string",
+            "enum": [
+                "MARKET",
+                "LIMIT",
+                "STOP",
+                "STOP_LIMIT"
+            ],
+            "x-enum-varnames": [
+                "OrderTypeMarket",
+                "OrderTypeLimit",
+                "OrderTypeStop",
+                "OrderTypeStopLimit"
+            ]
         }
     },
     "securityDefinitions": {

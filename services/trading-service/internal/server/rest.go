@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
-	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/pb"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/handler"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/config"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/middleware"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/validator"
@@ -24,12 +24,12 @@ import (
 	_ "github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/docs"
 )
 
-func NewServer(lc fx.Lifecycle, cfg *config.Configuration, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient pb.UserServiceClient) {
+func NewServer(lc fx.Lifecycle, cfg *config.Configuration, healthHandler *handler.HealthHandler, taxHandler *handler.TaxHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient client.UserServiceClient) {
 	r := gin.New()
 
 	InitRouter(r, cfg)
 
-	SetupRoutes(r, healthHandler, exchangeHandler, orderHandler, verifier, permProvider, userClient)
+	SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, verifier, permProvider, userClient)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -57,7 +57,7 @@ func InitRouter(r *gin.Engine, cfg *config.Configuration) {
 	validator.RegisterValidators()
 }
 
-func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient pb.UserServiceClient) {
+func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, taxHandler *handler.TaxHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient client.UserServiceClient) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api")
@@ -77,6 +77,12 @@ func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, exchangeHa
 			orders.PATCH("/:id/approve", middleware.RequireSupervisor(userClient), orderHandler.ApproveOrder)
 			orders.PATCH("/:id/decline", middleware.RequireSupervisor(userClient), orderHandler.DeclineOrder)
 			orders.PATCH("/:id/cancel", orderHandler.CancelOrder)
+		}
+		tax := api.Group("/tax")
+		tax.Use(auth.Middleware(verifier, permProvider))
+		{
+			tax.GET("", middleware.RequireSupervisor(userClient), taxHandler.ListTaxUsers)
+			tax.POST("/collect", middleware.RequireSupervisor(userClient), taxHandler.CollectTaxes)
 		}
 	}
 }

@@ -48,21 +48,29 @@ func (r *taxRepositoryImpl) FindAccumulatedTaxByAccountNumber(ctx context.Contex
 
 func (r *taxRepositoryImpl) FindAllPositiveAccumulatedTax(ctx context.Context) ([]model.AccumulatedTax, error) {
 	var taxes []model.AccumulatedTax
-	err := r.db.WithContext(ctx).Where("tax_owed_rsd > 0").Find(&taxes).Error
+	err := r.db.WithContext(ctx).Where("tax_owed > 0").Find(&taxes).Error
 	if err != nil {
 		return nil, err
 	}
 	return taxes, nil
 }
 
-func (r *taxRepositoryImpl) AddTaxOwed(ctx context.Context, accountNumber string, employeeID *uint, amount float64) error {
-	result := r.db.WithContext(ctx).
+func (r *taxRepositoryImpl) AddTaxOwed(ctx context.Context, accountNumber string, employeeID *uint, amount float64, currencyCode string) error {
+	query := r.db.WithContext(ctx).
 		Model(&model.AccumulatedTax{}).
-		Where("account_number = ? AND (employee_id = ? OR (employee_id IS NULL AND ? IS NULL))", accountNumber, employeeID, employeeID).
-		Updates(map[string]interface{}{
-			"tax_owed_rsd":    gorm.Expr("tax_owed_rsd + ?", amount),
-			"last_updated_at": time.Now(),
-		})
+		Where("account_number = ?", accountNumber)
+
+	if employeeID != nil {
+		query = query.Where("employee_id = ?", *employeeID)
+	} else {
+		query = query.Where("employee_id IS NULL")
+	}
+
+	result := query.Updates(map[string]interface{}{
+		"tax_owed":        gorm.Expr("tax_owed + ?", amount),
+		"currency_code":   currencyCode,
+		"last_updated_at": time.Now(),
+	})
 
 	if result.Error != nil {
 		return result.Error
@@ -72,7 +80,8 @@ func (r *taxRepositoryImpl) AddTaxOwed(ctx context.Context, accountNumber string
 		tax := model.AccumulatedTax{
 			AccountNumber: accountNumber,
 			EmployeeID:    employeeID,
-			TaxOwedRSD:    amount,
+			TaxOwed:       amount,
+			CurrencyCode:  currencyCode,
 			LastUpdatedAt: time.Now(),
 		}
 		return r.db.WithContext(ctx).Create(&tax).Error
@@ -86,7 +95,7 @@ func (r *taxRepositoryImpl) ClearTax(ctx context.Context, accountNumber string, 
 		Model(&model.AccumulatedTax{}).
 		Where("account_number = ?", accountNumber).
 		Updates(map[string]interface{}{
-			"tax_owed_rsd":    0,
+			"tax_owed":        0,
 			"last_cleared_at": clearedAt,
 			"last_updated_at": clearedAt,
 		}).Error
@@ -97,15 +106,22 @@ func (r *taxRepositoryImpl) RecordCollectionResult(ctx context.Context, collecti
 		if err := tx.Create(collection).Error; err != nil {
 			return err
 		}
+
 		if clearTax {
-			if err := tx.Model(&model.AccumulatedTax{}).
-				Where("account_number = ? AND (employee_id = ? OR (employee_id IS NULL AND ? IS NULL))",
-					collection.AccountNumber, collection.EmployeeID, collection.EmployeeID).
-				Updates(map[string]interface{}{
-					"tax_owed_rsd":    gorm.Expr("GREATEST(tax_owed_rsd - ?, 0)", clearedAmount),
-					"last_cleared_at": clearedAt,
-					"last_updated_at": clearedAt,
-				}).Error; err != nil {
+			query := tx.Model(&model.AccumulatedTax{}).
+				Where("account_number = ?", collection.AccountNumber)
+
+			if collection.EmployeeID != nil {
+				query = query.Where("employee_id = ?", *collection.EmployeeID)
+			} else {
+				query = query.Where("employee_id IS NULL")
+			}
+
+			if err := query.Updates(map[string]interface{}{
+				"tax_owed":        gorm.Expr("GREATEST(tax_owed - ?, 0)", clearedAmount),
+				"last_cleared_at": clearedAt,
+				"last_updated_at": clearedAt,
+			}).Error; err != nil {
 				return err
 			}
 		}

@@ -5,12 +5,12 @@ import (
 	"math"
 	"time"
 
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
-	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/pb"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/repository"
@@ -20,16 +20,16 @@ type OrderService struct {
 	orderRepo     repository.OrderRepository
 	exchangeRepo  repository.ExchangeRepository
 	listingRepo   repository.ListingRepository
-	userClient    pb.UserServiceClient
-	bankingClient pb.BankingServiceClient
+	userClient    client.UserServiceClient
+	bankingClient client.BankingClient
 }
 
 func NewOrderService(
 	orderRepo repository.OrderRepository,
 	exchangeRepo repository.ExchangeRepository,
 	listingRepo repository.ListingRepository,
-	userClient pb.UserServiceClient,
-	bankingClient pb.BankingServiceClient,
+	userClient client.UserServiceClient,
+	bankingClient client.BankingClient,
 ) *OrderService {
 	return &OrderService{
 		orderRepo:     orderRepo,
@@ -209,9 +209,7 @@ func (s *OrderService) resolveOrderStatus(ctx context.Context, authCtx *auth.Aut
 		return model.OrderStatusPending
 	}
 
-	resp, err := s.userClient.GetEmployeeById(ctx, &pb.GetEmployeeByIdRequest{
-		Id: uint64(*authCtx.EmployeeID),
-	})
+	resp, err := s.userClient.GetEmployeeById(ctx, uint64(*authCtx.EmployeeID))
 	if err != nil {
 		return model.OrderStatusPending
 	}
@@ -238,9 +236,7 @@ func (s *OrderService) resolveOrderStatus(ctx context.Context, authCtx *auth.Aut
 }
 
 func (s *OrderService) validateAccount(ctx context.Context, accountNumber string, authCtx *auth.AuthContext) error {
-	account, err := s.bankingClient.GetAccountByNumber(ctx, &pb.GetAccountByNumberRequest{
-		AccountNumber: accountNumber,
-	})
+	account, err := s.bankingClient.GetAccountByNumber(ctx, accountNumber)
 
 	if err != nil {
 		st, ok := status.FromError(err)
@@ -270,10 +266,7 @@ func (s *OrderService) checkSupervisor(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	resp, err := s.userClient.GetEmployeeById(ctx, &pb.GetEmployeeByIdRequest{
-		Id: uint64(*authCtx.EmployeeID),
-	})
-
+	resp, err := s.userClient.GetEmployeeById(ctx, uint64(*authCtx.EmployeeID))
 	if err != nil {
 		return false, errors.InternalErr(err)
 	}

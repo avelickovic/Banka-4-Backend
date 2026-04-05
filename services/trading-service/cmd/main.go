@@ -14,7 +14,6 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/server"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/service"
 	"go.uber.org/fx"
-	"google.golang.org/grpc"
 	"gorm.io/gorm"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
@@ -42,11 +41,11 @@ func main() {
 				return jwt.NewJWTVerifier(cfg.JWTSecret)
 			},
 			client.NewUserServiceConnection,
-			func(conn *grpc.ClientConn) pb.PermissionServiceClient {
-				return pb.NewPermissionServiceClient(conn)
+			func(conn *client.UserConn) pb.PermissionServiceClient {
+				return pb.NewPermissionServiceClient(conn.ClientConn)
 			},
-			func(conn *grpc.ClientConn) pb.UserServiceClient {
-				return pb.NewUserServiceClient(conn)
+			func(conn *client.UserConn) client.UserServiceClient {
+				return clientgrpc.NewUserServiceClient(conn)
 			},
 			client.NewBankingServiceConnection,
 			func(conn *client.BankingConn) pb.BankingServiceClient {
@@ -79,6 +78,7 @@ func main() {
 			handler.NewOrderHandler,
 			repository.NewTaxRepository,
 			service.NewTaxService,
+			handler.NewTaxHandler,
 			service.NewTaxScheduler,
 		),
 		fx.Invoke(func(cfg *config.Configuration) error {
@@ -118,7 +118,7 @@ func main() {
 			return seed.RunExchangeSeed(db)
 		}),
 		fx.Invoke(func(db *gorm.DB) error {
-			return seed.SeedAccumulatedTax(db)
+			return seed.AccumulatedTax(db)
 		}),
 		fx.Invoke(server.NewServer),
 		fx.Invoke(func(lc fx.Lifecycle, scheduler *service.TaxScheduler) {

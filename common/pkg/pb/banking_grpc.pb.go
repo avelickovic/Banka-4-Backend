@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BankingService_GetAccountByNumber_FullMethodName    = "/banking.v1.BankingService/GetAccountByNumber"
-	BankingService_CreatePayment_FullMethodName         = "/banking.v1.BankingService/CreatePayment"
-	BankingService_GetAccountsByClientID_FullMethodName = "/banking.v1.BankingService/GetAccountsByClientID"
+	BankingService_GetAccountByNumber_FullMethodName               = "/banking.v1.BankingService/GetAccountByNumber"
+	BankingService_CreatePaymentWithoutVerification_FullMethodName = "/banking.v1.BankingService/CreatePaymentWithoutVerification"
+	BankingService_GetAccountsByClientID_FullMethodName            = "/banking.v1.BankingService/GetAccountsByClientID"
+	BankingService_ConvertCurrency_FullMethodName                  = "/banking.v1.BankingService/ConvertCurrency"
 )
 
 // BankingServiceClient is the client API for BankingService service.
@@ -29,8 +30,9 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BankingServiceClient interface {
 	GetAccountByNumber(ctx context.Context, in *GetAccountByNumberRequest, opts ...grpc.CallOption) (*GetAccountByNumberResponse, error)
-	CreatePayment(ctx context.Context, in *CreatePaymentRequest, opts ...grpc.CallOption) (*CreatePaymentResponse, error)
+	CreatePaymentWithoutVerification(ctx context.Context, in *CreatePaymentRequest, opts ...grpc.CallOption) (*CreatePaymentResponse, error)
 	GetAccountsByClientID(ctx context.Context, in *GetAccountsByClientIDRequest, opts ...grpc.CallOption) (*GetAccountsByClientIDResponse, error)
+	ConvertCurrency(ctx context.Context, in *ConvertCurrencyRequest, opts ...grpc.CallOption) (*ConvertCurrencyResponse, error)
 }
 
 type bankingServiceClient struct {
@@ -51,10 +53,10 @@ func (c *bankingServiceClient) GetAccountByNumber(ctx context.Context, in *GetAc
 	return out, nil
 }
 
-func (c *bankingServiceClient) CreatePayment(ctx context.Context, in *CreatePaymentRequest, opts ...grpc.CallOption) (*CreatePaymentResponse, error) {
+func (c *bankingServiceClient) CreatePaymentWithoutVerification(ctx context.Context, in *CreatePaymentRequest, opts ...grpc.CallOption) (*CreatePaymentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreatePaymentResponse)
-	err := c.cc.Invoke(ctx, BankingService_CreatePayment_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, BankingService_CreatePaymentWithoutVerification_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +73,24 @@ func (c *bankingServiceClient) GetAccountsByClientID(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *bankingServiceClient) ConvertCurrency(ctx context.Context, in *ConvertCurrencyRequest, opts ...grpc.CallOption) (*ConvertCurrencyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConvertCurrencyResponse)
+	err := c.cc.Invoke(ctx, BankingService_ConvertCurrency_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BankingServiceServer is the server API for BankingService service.
 // All implementations must embed UnimplementedBankingServiceServer
 // for forward compatibility.
 type BankingServiceServer interface {
 	GetAccountByNumber(context.Context, *GetAccountByNumberRequest) (*GetAccountByNumberResponse, error)
-	CreatePayment(context.Context, *CreatePaymentRequest) (*CreatePaymentResponse, error)
+	CreatePaymentWithoutVerification(context.Context, *CreatePaymentRequest) (*CreatePaymentResponse, error)
 	GetAccountsByClientID(context.Context, *GetAccountsByClientIDRequest) (*GetAccountsByClientIDResponse, error)
+	ConvertCurrency(context.Context, *ConvertCurrencyRequest) (*ConvertCurrencyResponse, error)
 	mustEmbedUnimplementedBankingServiceServer()
 }
 
@@ -91,11 +104,14 @@ type UnimplementedBankingServiceServer struct{}
 func (UnimplementedBankingServiceServer) GetAccountByNumber(context.Context, *GetAccountByNumberRequest) (*GetAccountByNumberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountByNumber not implemented")
 }
-func (UnimplementedBankingServiceServer) CreatePayment(context.Context, *CreatePaymentRequest) (*CreatePaymentResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreatePayment not implemented")
+func (UnimplementedBankingServiceServer) CreatePaymentWithoutVerification(context.Context, *CreatePaymentRequest) (*CreatePaymentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreatePaymentWithoutVerification not implemented")
 }
 func (UnimplementedBankingServiceServer) GetAccountsByClientID(context.Context, *GetAccountsByClientIDRequest) (*GetAccountsByClientIDResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountsByClientID not implemented")
+}
+func (UnimplementedBankingServiceServer) ConvertCurrency(context.Context, *ConvertCurrencyRequest) (*ConvertCurrencyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConvertCurrency not implemented")
 }
 func (UnimplementedBankingServiceServer) mustEmbedUnimplementedBankingServiceServer() {}
 func (UnimplementedBankingServiceServer) testEmbeddedByValue()                        {}
@@ -136,20 +152,20 @@ func _BankingService_GetAccountByNumber_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BankingService_CreatePayment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _BankingService_CreatePaymentWithoutVerification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreatePaymentRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BankingServiceServer).CreatePayment(ctx, in)
+		return srv.(BankingServiceServer).CreatePaymentWithoutVerification(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BankingService_CreatePayment_FullMethodName,
+		FullMethod: BankingService_CreatePaymentWithoutVerification_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BankingServiceServer).CreatePayment(ctx, req.(*CreatePaymentRequest))
+		return srv.(BankingServiceServer).CreatePaymentWithoutVerification(ctx, req.(*CreatePaymentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -172,6 +188,24 @@ func _BankingService_GetAccountsByClientID_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BankingService_ConvertCurrency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConvertCurrencyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).ConvertCurrency(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_ConvertCurrency_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).ConvertCurrency(ctx, req.(*ConvertCurrencyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BankingService_ServiceDesc is the grpc.ServiceDesc for BankingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -184,12 +218,16 @@ var BankingService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _BankingService_GetAccountByNumber_Handler,
 		},
 		{
-			MethodName: "CreatePayment",
-			Handler:    _BankingService_CreatePayment_Handler,
+			MethodName: "CreatePaymentWithoutVerification",
+			Handler:    _BankingService_CreatePaymentWithoutVerification_Handler,
 		},
 		{
 			MethodName: "GetAccountsByClientID",
 			Handler:    _BankingService_GetAccountsByClientID_Handler,
+		},
+		{
+			MethodName: "ConvertCurrency",
+			Handler:    _BankingService_ConvertCurrency_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

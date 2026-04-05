@@ -9,21 +9,22 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func NewUserServiceConnection(lc fx.Lifecycle, cfg *config.Configuration) (*grpc.ClientConn, error) {
+type UserConn struct {
+	*grpc.ClientConn
+}
+
+func NewUserServiceConnection(lc fx.Lifecycle, cfg *config.Configuration) (*UserConn, error) {
 	conn, err := grpc.NewClient(
 		cfg.UserServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
-
 	if err != nil {
 		return nil, err
 	}
-
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
 			return conn.Close()
 		},
 	})
-
-	return conn, nil
+	return &UserConn{conn}, nil
 }

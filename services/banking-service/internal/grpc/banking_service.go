@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/model"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -15,14 +16,16 @@ import (
 
 type BankingService struct {
 	pb.UnimplementedBankingServiceServer
-	accountRepo    repository.AccountRepository
-	paymentService *service.PaymentService
+	accountRepo     repository.AccountRepository
+	paymentService  *service.PaymentService
+	exchangeService *service.ExchangeService
 }
 
-func NewBankingService(accountRepo repository.AccountRepository, paymentService *service.PaymentService) *BankingService {
+func NewBankingService(accountRepo repository.AccountRepository, paymentService *service.PaymentService, exchangeService *service.ExchangeService) *BankingService {
 	return &BankingService{
-		accountRepo:    accountRepo,
-		paymentService: paymentService,
+		accountRepo:     accountRepo,
+		paymentService:  paymentService,
+		exchangeService: exchangeService,
 	}
 }
 
@@ -78,4 +81,27 @@ func (s *BankingService) GetAccountsByClientID(ctx context.Context, req *pb.GetA
 	}
 
 	return &pb.GetAccountsByClientIDResponse{Accounts: pbAccounts}, nil
+}
+
+func (s *BankingService) ConvertCurrency(ctx context.Context, req *pb.ConvertCurrencyRequest) (*pb.ConvertCurrencyResponse, error) {
+	if req.Amount <= 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "amount must be positive")
+	}
+	if req.FromCode == "" || req.ToCode == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "from_code and to_code are required")
+	}
+
+	converted, err := s.exchangeService.Convert(
+		ctx,
+		req.Amount,
+		model.CurrencyCode(req.FromCode),
+		model.CurrencyCode(req.ToCode),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "currency conversion failed: %v", err)
+	}
+
+	return &pb.ConvertCurrencyResponse{
+		ConvertedAmount: converted,
+	}, nil
 }

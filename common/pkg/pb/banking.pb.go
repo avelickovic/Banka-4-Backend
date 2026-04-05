@@ -433,6 +433,110 @@ func (x *AccountInfo) GetCurrencyCode() string {
 	return ""
 }
 
+type ConvertCurrencyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Amount        float64                `protobuf:"fixed64,1,opt,name=amount,proto3" json:"amount,omitempty"`
+	FromCode      string                 `protobuf:"bytes,2,opt,name=from_code,json=fromCode,proto3" json:"from_code,omitempty"`
+	ToCode        string                 `protobuf:"bytes,3,opt,name=to_code,json=toCode,proto3" json:"to_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConvertCurrencyRequest) Reset() {
+	*x = ConvertCurrencyRequest{}
+	mi := &file_banking_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConvertCurrencyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConvertCurrencyRequest) ProtoMessage() {}
+
+func (x *ConvertCurrencyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_banking_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConvertCurrencyRequest.ProtoReflect.Descriptor instead.
+func (*ConvertCurrencyRequest) Descriptor() ([]byte, []int) {
+	return file_banking_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ConvertCurrencyRequest) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *ConvertCurrencyRequest) GetFromCode() string {
+	if x != nil {
+		return x.FromCode
+	}
+	return ""
+}
+
+func (x *ConvertCurrencyRequest) GetToCode() string {
+	if x != nil {
+		return x.ToCode
+	}
+	return ""
+}
+
+type ConvertCurrencyResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ConvertedAmount float64                `protobuf:"fixed64,1,opt,name=converted_amount,json=convertedAmount,proto3" json:"converted_amount,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ConvertCurrencyResponse) Reset() {
+	*x = ConvertCurrencyResponse{}
+	mi := &file_banking_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConvertCurrencyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConvertCurrencyResponse) ProtoMessage() {}
+
+func (x *ConvertCurrencyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_banking_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConvertCurrencyResponse.ProtoReflect.Descriptor instead.
+func (*ConvertCurrencyResponse) Descriptor() ([]byte, []int) {
+	return file_banking_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ConvertCurrencyResponse) GetConvertedAmount() float64 {
+	if x != nil {
+		return x.ConvertedAmount
+	}
+	return 0
+}
+
 var File_banking_proto protoreflect.FileDescriptor
 
 const file_banking_proto_rawDesc = "" +
@@ -466,11 +570,18 @@ const file_banking_proto_rawDesc = "" +
 	"\baccounts\x18\x01 \x03(\v2\x17.banking.v1.AccountInfoR\baccounts\"Y\n" +
 	"\vAccountInfo\x12%\n" +
 	"\x0eaccount_number\x18\x01 \x01(\tR\raccountNumber\x12#\n" +
-	"\rcurrency_code\x18\x02 \x01(\tR\fcurrencyCode2\xb9\x02\n" +
+	"\rcurrency_code\x18\x02 \x01(\tR\fcurrencyCode\"f\n" +
+	"\x16ConvertCurrencyRequest\x12\x16\n" +
+	"\x06amount\x18\x01 \x01(\x01R\x06amount\x12\x1b\n" +
+	"\tfrom_code\x18\x02 \x01(\tR\bfromCode\x12\x17\n" +
+	"\ato_code\x18\x03 \x01(\tR\x06toCode\"D\n" +
+	"\x17ConvertCurrencyResponse\x12)\n" +
+	"\x10converted_amount\x18\x01 \x01(\x01R\x0fconvertedAmount2\xa8\x03\n" +
 	"\x0eBankingService\x12c\n" +
-	"\x12GetAccountByNumber\x12%.banking.v1.GetAccountByNumberRequest\x1a&.banking.v1.GetAccountByNumberResponse\x12T\n" +
-	"\rCreatePayment\x12 .banking.v1.CreatePaymentRequest\x1a!.banking.v1.CreatePaymentResponse\x12l\n" +
-	"\x15GetAccountsByClientID\x12(.banking.v1.GetAccountsByClientIDRequest\x1a).banking.v1.GetAccountsByClientIDResponseB\x12Z\x10common/pkg/pb;pbb\x06proto3"
+	"\x12GetAccountByNumber\x12%.banking.v1.GetAccountByNumberRequest\x1a&.banking.v1.GetAccountByNumberResponse\x12g\n" +
+	" CreatePaymentWithoutVerification\x12 .banking.v1.CreatePaymentRequest\x1a!.banking.v1.CreatePaymentResponse\x12l\n" +
+	"\x15GetAccountsByClientID\x12(.banking.v1.GetAccountsByClientIDRequest\x1a).banking.v1.GetAccountsByClientIDResponse\x12Z\n" +
+	"\x0fConvertCurrency\x12\".banking.v1.ConvertCurrencyRequest\x1a#.banking.v1.ConvertCurrencyResponseB\x12Z\x10common/pkg/pb;pbb\x06proto3"
 
 var (
 	file_banking_proto_rawDescOnce sync.Once
@@ -484,7 +595,7 @@ func file_banking_proto_rawDescGZIP() []byte {
 	return file_banking_proto_rawDescData
 }
 
-var file_banking_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_banking_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_banking_proto_goTypes = []any{
 	(*GetAccountByNumberRequest)(nil),     // 0: banking.v1.GetAccountByNumberRequest
 	(*GetAccountByNumberResponse)(nil),    // 1: banking.v1.GetAccountByNumberResponse
@@ -493,17 +604,21 @@ var file_banking_proto_goTypes = []any{
 	(*GetAccountsByClientIDRequest)(nil),  // 4: banking.v1.GetAccountsByClientIDRequest
 	(*GetAccountsByClientIDResponse)(nil), // 5: banking.v1.GetAccountsByClientIDResponse
 	(*AccountInfo)(nil),                   // 6: banking.v1.AccountInfo
+	(*ConvertCurrencyRequest)(nil),        // 7: banking.v1.ConvertCurrencyRequest
+	(*ConvertCurrencyResponse)(nil),       // 8: banking.v1.ConvertCurrencyResponse
 }
 var file_banking_proto_depIdxs = []int32{
 	6, // 0: banking.v1.GetAccountsByClientIDResponse.accounts:type_name -> banking.v1.AccountInfo
 	0, // 1: banking.v1.BankingService.GetAccountByNumber:input_type -> banking.v1.GetAccountByNumberRequest
-	2, // 2: banking.v1.BankingService.CreatePayment:input_type -> banking.v1.CreatePaymentRequest
+	2, // 2: banking.v1.BankingService.CreatePaymentWithoutVerification:input_type -> banking.v1.CreatePaymentRequest
 	4, // 3: banking.v1.BankingService.GetAccountsByClientID:input_type -> banking.v1.GetAccountsByClientIDRequest
-	1, // 4: banking.v1.BankingService.GetAccountByNumber:output_type -> banking.v1.GetAccountByNumberResponse
-	3, // 5: banking.v1.BankingService.CreatePayment:output_type -> banking.v1.CreatePaymentResponse
-	5, // 6: banking.v1.BankingService.GetAccountsByClientID:output_type -> banking.v1.GetAccountsByClientIDResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	7, // 4: banking.v1.BankingService.ConvertCurrency:input_type -> banking.v1.ConvertCurrencyRequest
+	1, // 5: banking.v1.BankingService.GetAccountByNumber:output_type -> banking.v1.GetAccountByNumberResponse
+	3, // 6: banking.v1.BankingService.CreatePaymentWithoutVerification:output_type -> banking.v1.CreatePaymentResponse
+	5, // 7: banking.v1.BankingService.GetAccountsByClientID:output_type -> banking.v1.GetAccountsByClientIDResponse
+	8, // 8: banking.v1.BankingService.ConvertCurrency:output_type -> banking.v1.ConvertCurrencyResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -520,7 +635,7 @@ func file_banking_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_banking_proto_rawDesc), len(file_banking_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

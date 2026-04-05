@@ -29,7 +29,7 @@ func (c *BankingServiceClient) GetAccountByNumber(ctx context.Context, accountNu
 }
 
 func (c *BankingServiceClient) CreatePaymentWithoutVerification(ctx context.Context, req *pb.CreatePaymentRequest) (*pb.CreatePaymentResponse, error) {
-	resp, err := c.stub.CreatePayment(ctx, req)
+	resp, err := c.stub.CreatePaymentWithoutVerification(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("banking client CreatePayment: %w", err)
 	}
@@ -44,4 +44,16 @@ func (c *BankingServiceClient) GetAccountsByClientID(ctx context.Context, client
 		return nil, fmt.Errorf("banking client GetAccountsByClientID: %w", err)
 	}
 	return resp, nil
+}
+
+func (c *BankingServiceClient) ConvertCurrency(ctx context.Context, amount float64, fromCode, toCode string) (float64, error) {
+	resp, err := c.stub.ConvertCurrency(ctx, &pb.ConvertCurrencyRequest{
+		Amount:   amount,
+		FromCode: fromCode,
+		ToCode:   toCode,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("banking client ConvertCurrency: %w", err)
+	}
+	return resp.ConvertedAmount, nil
 }

@@ -32,22 +32,20 @@ func NewTaxService(
 	}
 }
 
-// profit pozitivan, izračunava 15% poreza i upisuje u bazu.
-func (s *TaxService) RecordTax(ctx context.Context, accountNumber string, employeeID *uint, profit float64) error {
+func (s *TaxService) RecordTax(ctx context.Context, accountNumber string, employeeID *uint, profit float64, currencyCode string) error {
 	if profit <= 0 {
 		return nil
 	}
 
 	taxAmount := profit * taxRate
 
-	if err := s.taxRepo.AddTaxOwed(ctx, accountNumber, employeeID, taxAmount); err != nil {
+	if err := s.taxRepo.AddTaxOwed(ctx, accountNumber, employeeID, taxAmount, currencyCode); err != nil {
 		return errors.InternalErr(err)
 	}
 
 	return nil
 }
 
-// Za svaki racun koji ima nakupljeni porez, pokušava da ga uplati na racun drzave, rezultat toga (uspeh ili neuspeh) u bazu.
 func (s *TaxService) CollectTaxes(ctx context.Context) error {
 	taxes, err := s.taxRepo.FindAllPositiveAccumulatedTax(ctx)
 	if err != nil {
@@ -56,7 +54,7 @@ func (s *TaxService) CollectTaxes(ctx context.Context) error {
 	now := time.Now()
 
 	for _, tax := range taxes {
-		amountToCollect := tax.TaxOwedRSD
+		amountToCollect := tax.TaxOwed
 
 		collectionErr := s.collectSingleTax(ctx, tax.AccountNumber, amountToCollect)
 
@@ -72,8 +70,9 @@ func (s *TaxService) CollectTaxes(ctx context.Context) error {
 
 		collection := &model.TaxCollection{
 			AccountNumber:     tax.AccountNumber,
-			EmployeeID:        tax.EmployeeID, // carry over from accumulated
-			TaxOwedRSD:        amountToCollect,
+			EmployeeID:        tax.EmployeeID,
+			TaxOwed:           amountToCollect,
+			CurrencyCode:      tax.CurrencyCode,
 			Status:            status,
 			FailureReason:     failureReason,
 			TaxingPeriodStart: tax.LastUpdatedAt,
@@ -101,7 +100,6 @@ func (s *TaxService) collectSingleTax(ctx context.Context, accountNumber string,
 	return err
 }
 
-// trenutni nakupljeni porez za jedan racun iz baze
 func (s *TaxService) GetAccumulatedTax(ctx context.Context, accountNumber string) (*model.AccumulatedTax, error) {
 	tax, err := s.taxRepo.FindAccumulatedTaxByAccountNumber(ctx, accountNumber)
 	if err != nil {
@@ -110,7 +108,6 @@ func (s *TaxService) GetAccumulatedTax(ctx context.Context, accountNumber string
 	return tax, nil
 }
 
-// istoriju svih naplatnih pokusaja poreza racuna(uspeni ili ne)
 func (s *TaxService) GetTaxCollections(ctx context.Context, accountNumber string) ([]model.TaxCollection, error) {
 	collections, err := s.taxRepo.FindTaxCollectionsByAccountNumber(ctx, accountNumber)
 	if err != nil {
@@ -125,11 +122,12 @@ func (s *TaxService) GetEmployeeTotalTax(ctx context.Context, employeeID uint) (
 		return 0, errors.InternalErr(err)
 	}
 
-	total := 0.0
+	totals := map[string]float64{}
 	for _, t := range taxes {
-		total += t.TaxOwedRSD
+		totals[t.CurrencyCode] += t.TaxOwed
 	}
-	return total, nil
+
+	return s.sumToRSD(ctx, totals)
 }
 
 func (s *TaxService) GetClientTotalTax(ctx context.Context, clientID uint64) (float64, error) {
@@ -148,9 +146,29 @@ func (s *TaxService) GetClientTotalTax(ctx context.Context, clientID uint64) (fl
 		return 0, errors.InternalErr(err)
 	}
 
-	total := 0.0
+	totals := map[string]float64{}
 	for _, t := range taxes {
-		total += t.TaxOwedRSD
+		totals[t.CurrencyCode] += t.TaxOwed
+	}
+
+	return s.sumToRSD(ctx, totals)
+}
+
+func (s *TaxService) sumToRSD(ctx context.Context, totals map[string]float64) (float64, error) {
+	total := 0.0
+	for currency, amount := range totals {
+		if amount <= 0 {
+			continue
+		}
+		if currency == "RSD" {
+			total += amount
+			continue
+		}
+		converted, err := s.bankingClient.ConvertCurrency(ctx, amount, currency, "RSD")
+		if err != nil {
+			return 0, errors.InternalErr(err)
+		}
+		total += converted
 	}
 	return total, nil
 }

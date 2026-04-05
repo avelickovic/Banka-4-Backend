@@ -5,10 +5,10 @@ import (
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
-	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/pb"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client"
 )
 
-func RequireSupervisor(userClient pb.UserServiceClient) gin.HandlerFunc {
+func RequireSupervisor(userClient client.UserServiceClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authCtx := auth.GetAuth(c)
 		if authCtx == nil {
@@ -23,10 +23,7 @@ func RequireSupervisor(userClient pb.UserServiceClient) gin.HandlerFunc {
 			return
 		}
 
-		resp, err := userClient.GetEmployeeById(c.Request.Context(), &pb.GetEmployeeByIdRequest{
-			Id: uint64(*authCtx.EmployeeID),
-		})
-
+		resp, err := userClient.GetEmployeeById(c.Request.Context(), uint64(*authCtx.EmployeeID))
 		if err != nil {
 			c.Error(errors.InternalErr(err))
 			c.Abort()

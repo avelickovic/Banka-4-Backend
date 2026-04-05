@@ -14,7 +14,7 @@ type TaxRepository interface {
 
 	FindAllPositiveAccumulatedTax(ctx context.Context) ([]model.AccumulatedTax, error)
 
-	AddTaxOwed(ctx context.Context, accountNumber string, employeeID *uint, amount float64) error
+	AddTaxOwed(ctx context.Context, accountNumber string, employeeID *uint, amount float64, currencyCode string) error
 
 	ClearTax(ctx context.Context, accountNumber string, clearedAt time.Time) error
 

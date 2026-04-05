@@ -6,8 +6,9 @@ option go_package = "common/pkg/pb;pb";
 
 service BankingService {
   rpc GetAccountByNumber(GetAccountByNumberRequest) returns (GetAccountByNumberResponse);
-  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc CreatePaymentWithoutVerification(CreatePaymentRequest) returns (CreatePaymentResponse);
   rpc GetAccountsByClientID(GetAccountsByClientIDRequest) returns (GetAccountsByClientIDResponse);
+  rpc ConvertCurrency(ConvertCurrencyRequest) returns (ConvertCurrencyResponse);
 }
 
 message GetAccountByNumberRequest {
@@ -51,3 +52,12 @@ message AccountInfo {
   string currency_code = 2;
 }
 
+message ConvertCurrencyRequest {
+  double amount     = 1;
+  string from_code  = 2;
+  string to_code    = 3;
+}
+
+message ConvertCurrencyResponse {
+  double converted_amount = 1;
+}
