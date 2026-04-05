@@ -81,14 +81,10 @@ func (s *UserService) GetAllClients(ctx context.Context, req *pb.GetAllClientsRe
 	pbClients := make([]*pb.ClientResponse, len(result.Data))
 	for i, c := range result.Data {
 		pbClients[i] = &pb.ClientResponse{
-			Id:          uint64(c.Id),
-			FirstName:   c.FirstName,
-			LastName:    c.LastName,
-			Email:       c.Email,
-			PhoneNumber: c.PhoneNumber,
-			Address:     c.Address,
-			Username:    c.Username,
-			Active:      c.Active,
+			Id:        uint64(c.Id),
+			FirstName: c.FirstName,
+			LastName:  c.LastName,
+			Email:     c.Email,
 		}
 	}
 
@@ -117,19 +113,10 @@ func (s *UserService) GetAllActuaries(ctx context.Context, req *pb.GetAllActuari
 	pbActuaries := make([]*pb.ActuaryResponse, len(result.Data))
 	for i, a := range result.Data {
 		pbActuaries[i] = &pb.ActuaryResponse{
-			Id:           uint64(a.ID),
-			FirstName:    a.FirstName,
-			LastName:     a.LastName,
-			Email:        a.Email,
-			Username:     a.Username,
-			Department:   a.Department,
-			PositionId:   uint64(a.PositionID),
-			Active:       a.Active,
-			IsAgent:      a.IsAgent,
-			IsSupervisor: a.IsSupervisor,
-			OrderLimit:   a.Limit,
-			UsedLimit:    a.UsedLimit,
-			NeedApproval: a.NeedApproval,
+			Id:        uint64(a.ID),
+			FirstName: a.FirstName,
+			LastName:  a.LastName,
+			Email:     a.Email,
 		}
 	}
 
