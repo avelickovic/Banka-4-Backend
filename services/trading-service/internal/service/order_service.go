@@ -52,6 +52,8 @@ type OrderService struct {
 	exchangeRepo         repository.ExchangeRepository
 	listingRepo          repository.ListingRepository
 	assetOwnershipRepo   repository.AssetOwnershipRepository
+	futuresRepo          repository.FuturesContractRepository
+	optionRepo           repository.OptionRepository
 	userClient           client.UserServiceClient
 	bankingClient        client.BankingClient
 
@@ -68,6 +70,8 @@ func NewOrderService(
 	exchangeRepo repository.ExchangeRepository,
 	listingRepo repository.ListingRepository,
 	assetOwnershipRepo repository.AssetOwnershipRepository,
+	futuresRepo repository.FuturesContractRepository,
+	optionRepo repository.OptionRepository,
 	userClient client.UserServiceClient,
 	bankingClient client.BankingClient,
 ) *OrderService {
@@ -77,6 +81,8 @@ func NewOrderService(
 		exchangeRepo:         exchangeRepo,
 		listingRepo:          listingRepo,
 		assetOwnershipRepo:   assetOwnershipRepo,
+		futuresRepo:          futuresRepo,
+		optionRepo:           optionRepo,
 		userClient:           userClient,
 		bankingClient:        bankingClient,
 		now:                  time.Now,
@@ -176,7 +182,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req dto.CreateOrderReque
 		OrderType:         req.OrderType,
 		Direction:         req.Direction,
 		Quantity:          req.Quantity,
-		ContractSize:      1,
+		ContractSize:      s.resolveContractSize(ctx, listing),
 		PricePerUnit:      initialPricePerUnit,
 		LimitValue:        req.LimitValue,
 		StopValue:         req.StopValue,
@@ -203,6 +209,28 @@ func (s *OrderService) CreateOrder(ctx context.Context, req dto.CreateOrderReque
 	}
 
 	return &order, nil
+}
+
+func (s *OrderService) resolveContractSize(ctx context.Context, listing *model.Listing) float64 {
+	if listing.Asset == nil {
+		return 1
+	}
+	switch listing.Asset.AssetType {
+	case model.AssetTypeFuture:
+		contracts, err := s.futuresRepo.FindByAssetIDs(ctx, []uint{listing.AssetID})
+		if err != nil || len(contracts) == 0 {
+			return 1
+		}
+		return contracts[0].ContractSize
+	case model.AssetTypeOption:
+		options, err := s.optionRepo.FindByAssetIDs(ctx, []uint{listing.AssetID})
+		if err != nil || len(options) == 0 {
+			return 1
+		}
+		return float64(options[0].ContractSize)
+	default:
+		return 1
+	}
 }
 
 func (s *OrderService) ApproveOrder(ctx context.Context, orderID uint) (*model.Order, error) {

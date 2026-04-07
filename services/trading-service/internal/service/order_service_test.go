@@ -158,6 +158,14 @@ func (r *fakeListingRepo) FindByType(_ context.Context, _ model.ListingType) ([]
 	return nil, nil
 }
 
+func (r *fakeListingRepo) FindByAssetType(_ context.Context, _ model.AssetType) ([]model.Listing, error) {
+	return nil, nil
+}
+
+func (r *fakeListingRepo) FindByAssetIDs(_ context.Context, _ []uint) ([]model.Listing, error) {
+	return nil, nil
+}
+
 // ── Fake User Service Client ──────────────────────────────────────
 
 type fakeUserServiceClient struct {
@@ -247,7 +255,7 @@ func newTestOrderService(
 	userClient *fakeUserServiceClient,
 	bankingClient *fakeOrderBankingClient,
 ) *OrderService {
-	svc := NewOrderService(orderRepo, orderTxRepo, exchangeRepo, listingRepo, userClient, bankingClient)
+	svc := NewOrderService(orderRepo, orderTxRepo, exchangeRepo, listingRepo, &fakeAssetOwnershipRepo{}, &fakeFuturesRepo{}, &fakeOptionRepo{}, userClient, bankingClient)
 	svc.now = func() time.Time {
 		// Wednesday 10:00 UTC  (market hours for a UTC-0 exchange open 09:00-16:00)
 		return time.Date(2025, 6, 4, 10, 0, 0, 0, time.UTC)
