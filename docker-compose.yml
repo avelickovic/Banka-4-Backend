@@ -15,11 +15,7 @@ services:
       - user_service_db_data:/var/lib/postgresql/data
 
   user_service:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      args:
-        SERVICE: user-service
+    image: ghcr.io/raf-si-2025/banka-4-backend/user-service
     ports:
       - "${PORT}:${PORT}"
     env_file: .env
@@ -39,14 +35,9 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    working_dir: /app/user-service
 
   banking_service:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      args:
-        SERVICE: banking-service
+    image: ghcr.io/raf-si-2025/banka-4-backend/banking-service
     ports:
       - "${BANKING_SERVICE_PORT}:${BANKING_SERVICE_PORT}"
     env_file: .env
@@ -70,14 +61,9 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    working_dir: /app/banking-service
 
   trading_service:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      args:
-        SERVICE: trading-service
+    image: ghcr.io/raf-si-2025/banka-4-backend/trading-service
     ports:
       - "${TRADING_SERVICE_PORT}:${TRADING_SERVICE_PORT}"
     env_file: .env
@@ -101,7 +87,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    working_dir: /app/trading-service
 
   maildev:
     image: maildev/maildev:latest
