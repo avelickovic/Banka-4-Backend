@@ -30,7 +30,7 @@ func (r *assetOwnershipRepository) FindByIdentity(ctx context.Context, identityI
 func (r *assetOwnershipRepository) Upsert(ctx context.Context, ownership *model.AssetOwnership) error {
 	return r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "identity_id"}, {Name: "owner_type"}, {Name: "asset_id"}, {Name: "account_number"}},
+			Columns:   []clause.Column{{Name: "identity_id"}, {Name: "owner_type"}, {Name: "asset_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{"amount", "avg_buy_price", "updated_at"}),
 		}).
 		Create(ownership).Error

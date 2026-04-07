@@ -99,8 +99,6 @@ func (s *PortfolioService) GetPortfolio(ctx context.Context, identityID uint, ow
 	}
 
 	var result []dto.PortfolioAssetResponse
-	const taxRate = 0.15
-	// TODO: calculate TaxAmount
 
 	for _, o := range active {
 		m, known := meta[o.AssetID]

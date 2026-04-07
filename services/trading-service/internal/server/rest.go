@@ -112,6 +112,7 @@ func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, taxHandler
 		client.Use(authMw, auth.RequireClientSelf("clientId", true))
 		{
 			client.GET("/:clientId/assets", portfolioHandler.GetClientPortfolio)
+			client.GET("/:clientId/assets/profit", portfolioHandler.GetClientPortfolioProfit)
 			client.GET("/:clientId/accumulated-tax", taxHandler.GetClientAccumulatedTax)
 		}
 
@@ -119,6 +120,7 @@ func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, taxHandler
 		actuary.Use(authMw, auth.RequireIdentityType(auth.IdentityEmployee))
 		{
 			actuary.GET("/:actId/assets", portfolioHandler.GetActuaryPortfolio)
+			actuary.GET("/:actId/assets/profit", portfolioHandler.GetActuaryPortfolioProfit)
 			actuary.GET("/:actId/accumulated-tax", taxHandler.GetActuaryAccumulatedTax)
 		}
 

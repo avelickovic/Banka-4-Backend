@@ -15,7 +15,6 @@ type AssetOwnership struct {
 	OwnerType        OwnerType `gorm:"not null;size:10;uniqueIndex:idx_ao_identity"`
 	AssetID          uint      `gorm:"not null;uniqueIndex:idx_ao_identity"`
 	Asset            Asset
-	AccountNumber    string  `gorm:"not null;size:18;uniqueIndex:idx_ao_identity"`
 	Amount           float64 `gorm:"not null;default:0"`
 	AvgBuyPrice      float64 `gorm:"not null;default:0"`
 	UpdatedAt        time.Time

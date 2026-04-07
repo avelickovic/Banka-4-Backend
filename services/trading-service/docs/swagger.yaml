@@ -467,6 +467,11 @@ definitions:
       type:
         $ref: '#/definitions/dto.AssetType'
     type: object
+  dto.PortfolioProfitResponse:
+    properties:
+      totalProfit:
+        type: number
+    type: object
   dto.StockDetailedResponse:
     properties:
       ask:
@@ -674,6 +679,44 @@ paths:
       summary: Get portfolio for an actuary/agent
       tags:
       - portfolio
+  /api/actuary/{actId}/assets/profit:
+    get:
+      description: Returns the total accumulated profit across all currently held
+        asset positions for an actuary.
+      parameters:
+      - description: Actuary ID
+        in: path
+        name: actId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PortfolioProfitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Get total profit for an actuary portfolio
+      tags:
+      - portfolio
   /api/client/{clientId}/accumulated-tax:
     get:
       description: Returns the total accumulated tax for a specific client across
@@ -747,6 +790,44 @@ paths:
       security:
       - BearerAuth: []
       summary: Get portfolio for a client
+      tags:
+      - portfolio
+  /api/client/{clientId}/assets/profit:
+    get:
+      description: Returns the total accumulated profit across all currently held
+        asset positions for a client.
+      parameters:
+      - description: Client ID
+        in: path
+        name: clientId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PortfolioProfitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Get total profit for a client portfolio
       tags:
       - portfolio
   /api/exchange:

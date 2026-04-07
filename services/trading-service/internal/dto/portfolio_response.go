@@ -20,3 +20,7 @@ type PortfolioAssetResponse struct {
 	Profit            float64   `json:"profit"`
 	OutstandingShares *float64  `json:"outstandingShares,omitempty"`
 }
+
+type PortfolioProfitResponse struct {
+	TotalProfit float64 `json:"totalProfit"`
+}

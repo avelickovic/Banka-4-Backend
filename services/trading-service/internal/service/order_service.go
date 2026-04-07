@@ -469,7 +469,7 @@ func (s *OrderService) updateAssetOwnership(ctx context.Context, order *model.Or
 
 	var ownership *model.AssetOwnership
 	for i := range existing {
-		if existing[i].AssetID == assetID && existing[i].AccountNumber == order.AccountNumber {
+		if existing[i].AssetID == assetID {
 			ownership = &existing[i]
 			break
 		}
@@ -477,10 +477,9 @@ func (s *OrderService) updateAssetOwnership(ctx context.Context, order *model.Or
 
 	if ownership == nil {
 		ownership = &model.AssetOwnership{
-			IdentityID:    order.UserID,
-			OwnerType:     order.OwnerType,
-			AssetID:       assetID,
-			AccountNumber: order.AccountNumber,
+			IdentityID: order.UserID,
+			OwnerType:  order.OwnerType,
+			AssetID:    assetID,
 		}
 	}
 

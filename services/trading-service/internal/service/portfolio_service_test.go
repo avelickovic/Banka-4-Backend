@@ -81,14 +81,13 @@ func (r *fakeForexRepo) FindAll(_ context.Context, _ repository.ListingFilter) (
 
 func makeOwnership(assetID uint, ticker string, amount, avgBuyPrice float64) model.AssetOwnership {
 	return model.AssetOwnership{
-		IdentityID:    1,
-		OwnerType:     model.OwnerTypeClient,
-		AssetID:       assetID,
-		Asset:         model.Asset{AssetID: assetID, Ticker: ticker, AssetType: model.AssetTypeStock},
-		AccountNumber: "444000100000000110",
-		Amount:        amount,
-		AvgBuyPrice:   avgBuyPrice,
-		UpdatedAt:     time.Now(),
+		IdentityID:  1,
+		OwnerType:   model.OwnerTypeClient,
+		AssetID:     assetID,
+		Asset:       model.Asset{AssetID: assetID, Ticker: ticker, AssetType: model.AssetTypeStock},
+		Amount:      amount,
+		AvgBuyPrice: avgBuyPrice,
+		UpdatedAt:   time.Now(),
 	}
 }
 
@@ -268,4 +267,57 @@ func TestGetPortfolio_NegativeProfit_NoTax(t *testing.T) {
 	require.Len(t, result, 1)
 	require.InDelta(t, (150.0-200.0)*20, result[0].Profit, 0.001)
 	require.Equal(t, float64(20), result[0].Amount)
+}
+
+func TestGetPortfolio_MultipleAssets_ProfitAccumulation(t *testing.T) {
+	// Two stocks with different profit/loss — verifies values the handler will sum.
+	// AAPL: buy 10 @ 100, now 150 -> profit = +500
+	// MSFT: buy 5  @ 300, now 250 -> profit = -250
+	// Expected total if summed: +250
+	ownershipA := makeOwnership(10, "AAPL", 10, 100.0)
+	ownershipB := makeOwnership(20, "MSFT", 5, 300.0)
+	ownershipB.Asset.AssetID = 20
+	ownershipB.Asset.Ticker = "MSFT"
+
+	svc := NewPortfolioService(
+		&fakeAssetOwnershipRepo{ownerships: []model.AssetOwnership{ownershipA, ownershipB}},
+		&fakeStockRepo{stocks: []model.Stock{
+			{StockID: 1, AssetID: 10, Listing: makeListing(10, 150.0)},
+			{StockID: 2, AssetID: 20, Listing: makeListing(20, 250.0)},
+		}},
+		&fakeOptionRepo{},
+		&fakeFuturesRepo{},
+		&fakeForexRepo{},
+	)
+
+	result, err := svc.GetPortfolio(context.Background(), 1, model.OwnerTypeClient)
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+
+	var total float64
+	for _, a := range result {
+		total += a.Profit
+	}
+	require.InDelta(t, 250.0, total, 0.001)
+}
+
+func TestGetPortfolio_EmptyPortfolio_ZeroProfit(t *testing.T) {
+	// Empty ownership list -> GetPortfolio returns empty -> handler sums to 0
+	svc := NewPortfolioService(
+		&fakeAssetOwnershipRepo{ownerships: []model.AssetOwnership{}},
+		&fakeStockRepo{},
+		&fakeOptionRepo{},
+		&fakeFuturesRepo{},
+		&fakeForexRepo{},
+	)
+
+	result, err := svc.GetPortfolio(context.Background(), 1, model.OwnerTypeActuary)
+	require.NoError(t, err)
+	require.Empty(t, result)
+
+	var total float64
+	for _, a := range result {
+		total += a.Profit
+	}
+	require.InDelta(t, 0.0, total, 0.001)
 }
