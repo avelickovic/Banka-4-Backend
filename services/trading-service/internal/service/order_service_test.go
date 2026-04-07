@@ -154,9 +154,14 @@ func (r *fakeListingRepo) FindLastDailyPriceInfo(_ context.Context, _ uint, _ ti
 	return nil, nil
 }
 
-func (r *fakeListingRepo) FindByType(_ context.Context, _ model.ListingType) ([]model.Listing, error) {
+func (r *fakeListingRepo) FindByAssetType(_ context.Context, _ model.AssetType) ([]model.Listing, error) {
 	return nil, nil
 }
+
+func (r *fakeListingRepo) FindByAssetIDs(_ context.Context, _ []uint) ([]model.Listing, error) {
+	return nil, nil
+}
+
 
 // ── Fake User Service Client ──────────────────────────────────────
 
@@ -247,7 +252,7 @@ func newTestOrderService(
 	userClient *fakeUserServiceClient,
 	bankingClient *fakeOrderBankingClient,
 ) *OrderService {
-	svc := NewOrderService(orderRepo, orderTxRepo, exchangeRepo, listingRepo, userClient, bankingClient)
+	svc := NewOrderService(orderRepo, orderTxRepo, exchangeRepo, listingRepo, &fakeAssetOwnershipRepo{}, userClient, bankingClient)
 	svc.now = func() time.Time {
 		// Wednesday 10:00 UTC  (market hours for a UTC-0 exchange open 09:00-16:00)
 		return time.Date(2025, 6, 4, 10, 0, 0, 0, time.UTC)
@@ -273,12 +278,14 @@ func defaultExchange() *model.Exchange {
 func defaultListing() *model.Listing {
 	return &model.Listing{
 		ListingID:   1,
-		Ticker:      "AAPL",
-		Name:        "Apple Inc",
 		ExchangeMIC: "XTST",
 		Price:       150.0,
 		Ask:         151.0,
-		ListingType: model.ListingTypeStock,
+		Asset: &model.Asset{
+			Ticker:    "AAPL",
+			Name:      "Apple Inc",
+			AssetType: model.AssetTypeStock,
+		},
 	}
 }
 
