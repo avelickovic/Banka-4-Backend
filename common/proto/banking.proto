@@ -6,6 +6,7 @@ option go_package = "common/pkg/pb;pb";
 
 service BankingService {
   rpc GetAccountByNumber(GetAccountByNumberRequest) returns (GetAccountByNumberResponse);
+  rpc HasActiveLoan(HasActiveLoanRequest) returns (HasActiveLoanResponse);
   rpc CreatePaymentWithoutVerification(CreatePaymentRequest) returns (CreatePaymentResponse);
   rpc GetAccountsByClientID(GetAccountsByClientIDRequest) returns (GetAccountsByClientIDResponse);
   rpc ConvertCurrency(ConvertCurrencyRequest) returns (ConvertCurrencyResponse);
@@ -28,6 +29,14 @@ message GetAccountByNumberResponse {
   string account_type    = 3;
   string currency_code   = 4;
   double available_balance = 5;
+}
+
+message HasActiveLoanRequest {
+  uint64 client_id = 1;
+}
+
+message HasActiveLoanResponse {
+  bool has_active_loan = 1;
 }
 
 message CreatePaymentRequest {

@@ -32,6 +32,8 @@ func TestValidatePermission(t *testing.T) {
 		{name: "employee.create", input: string(permission.EmployeeCreate), isValid: true},
 		{name: "employee.update", input: string(permission.EmployeeUpdate), isValid: true},
 		{name: "employee.delete", input: string(permission.EmployeeDelete), isValid: true},
+		{name: "trading", input: string(permission.Trading), isValid: true},
+		{name: "trading.margin", input: string(permission.TradingMargin), isValid: true},
 		{name: "invalid permission", input: "admin.super", isValid: false},
 		{name: "empty string", input: "", isValid: false},
 		{name: "partial match", input: "employee", isValid: false},

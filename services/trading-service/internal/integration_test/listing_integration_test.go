@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/permission"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 )
 
@@ -42,6 +43,21 @@ func TestGetStocks_AsClient(t *testing.T) {
 
 	rec := performRequest(t, router, http.MethodGet, "/api/listings/stocks", nil, auth)
 	requireStatus(t, rec, http.StatusOK)
+}
+
+func TestGetStocks_ForbiddenWithoutTradingPermission(t *testing.T) {
+	t.Parallel()
+	db := setupTestDB(t)
+	router, _ := setupTestRouterWithPermissions(t, db, []permission.Permission{})
+
+	ex := seedExchange(t, db, "XNYS")
+	listing := seedListing(t, db, "MSFT", ex.MicCode, model.AssetTypeStock, 300.0)
+	seedStock(t, db, listing.ListingID)
+
+	auth := authHeaderForClient(t, 50, 1)
+
+	rec := performRequest(t, router, http.MethodGet, "/api/listings/stocks", nil, auth)
+	requireStatus(t, rec, http.StatusForbidden)
 }
 
 func TestGetStocks_Unauthorized(t *testing.T) {

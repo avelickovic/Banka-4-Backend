@@ -10,6 +10,7 @@ import (
 type LoanRepository interface {
 	FindByClientID(ctx context.Context, clientID uint, sortByAmountDesc bool) ([]model.Loan, error)
 	FindByIDAndClientID(ctx context.Context, id uint, clientID uint) (*model.Loan, error)
+	HasActiveByClientID(ctx context.Context, clientID uint) (bool, error)
 
 	// Metode za aktivne kredite
 	CreateLoan(ctx context.Context, loan *model.Loan) error

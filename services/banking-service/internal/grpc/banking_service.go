@@ -12,30 +12,33 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/pb"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/dto"
-  "github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/model"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/repository"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/banking-service/internal/service"
 )
 
 type BankingService struct {
 	pb.UnimplementedBankingServiceServer
-	accountRepo     repository.AccountRepository
-	paymentService  *service.PaymentService
-  transactionRepo      repository.TransactionRepository
+	accountRepo          repository.AccountRepository
+	loanRepo             repository.LoanRepository
+	paymentService       *service.PaymentService
+	transactionRepo      repository.TransactionRepository
 	transactionProcessor *service.TransactionProcessor
-	exchangeService *service.ExchangeService
+	exchangeService      *service.ExchangeService
 }
 
 func NewBankingService(
 	accountRepo repository.AccountRepository,
-  paymentService *service.PaymentService,
+	loanRepo repository.LoanRepository,
+	paymentService *service.PaymentService,
 	transactionRepo repository.TransactionRepository,
 	transactionProcessor *service.TransactionProcessor,
 	exchangeService *service.ExchangeService,
 ) *BankingService {
 	return &BankingService{
 		accountRepo:          accountRepo,
-    paymentService:       paymentService,
+		loanRepo:             loanRepo,
+		paymentService:       paymentService,
 		transactionRepo:      transactionRepo,
 		transactionProcessor: transactionProcessor,
 		exchangeService:      exchangeService,
@@ -57,6 +60,15 @@ func (s *BankingService) GetAccountByNumber(ctx context.Context, req *pb.GetAcco
 		CurrencyCode:     string(account.Currency.Code),
 		AvailableBalance: account.AvailableBalance,
 	}, nil
+}
+
+func (s *BankingService) HasActiveLoan(ctx context.Context, req *pb.HasActiveLoanRequest) (*pb.HasActiveLoanResponse, error) {
+	hasActiveLoan, err := s.loanRepo.HasActiveByClientID(ctx, uint(req.GetClientId()))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to check active loans: %v", err)
+	}
+
+	return &pb.HasActiveLoanResponse{HasActiveLoan: hasActiveLoan}, nil
 }
 
 func (s *BankingService) CreatePaymentWithoutVerification(ctx context.Context, req *pb.CreatePaymentRequest) (*pb.CreatePaymentResponse, error) {

@@ -42,7 +42,7 @@ func (f *fakeLoanRequestRepo) CreateRequest(_ context.Context, r *model.LoanRequ
 	r.ID = 1
 	return nil
 }
-  
+
 func (f *fakeLoanRequestRepo) FindAll(_ context.Context, _ *dto.ListLoanRequestsQuery) ([]model.LoanRequest, int64, error) {
 	return f.requests, f.total, f.findAllErr
 }
@@ -62,17 +62,17 @@ func (f *fakeLoanRequestRepo) Update(_ context.Context, r *model.LoanRequest) er
 // ── Fake Loan Repository ─────────────────────────────────────────────────────
 
 type fakeLoanRepo struct {
-	loan                *model.Loan
-	loans               []model.Loan
-	loanByRequestID     *model.Loan
-	loanByRequestIDErr  error
-	requests            []model.LoanRequest
-	total               int64
-	findAllErr          error
-	loanErr             error
-	instErr             error
-	findErr             error
-	updateErr           error
+	loan                 *model.Loan
+	loans                []model.Loan
+	loanByRequestID      *model.Loan
+	loanByRequestIDErr   error
+	requests             []model.LoanRequest
+	total                int64
+	findAllErr           error
+	loanErr              error
+	instErr              error
+	findErr              error
+	updateErr            error
 	variableRateLoansErr error
 }
 
@@ -82,6 +82,16 @@ func (f *fakeLoanRepo) FindByClientID(_ context.Context, _ uint, _ bool) ([]mode
 
 func (f *fakeLoanRepo) FindByIDAndClientID(_ context.Context, _ uint, _ uint) (*model.Loan, error) {
 	return f.loan, f.findErr
+}
+
+func (f *fakeLoanRepo) HasActiveByClientID(_ context.Context, _ uint) (bool, error) {
+	for _, loan := range f.loans {
+		if loan.Status == model.LoanStatusActive {
+			return true, nil
+		}
+	}
+
+	return false, f.findErr
 }
 
 func (f *fakeLoanRepo) CreateLoan(_ context.Context, loan *model.Loan) error {
@@ -121,7 +131,7 @@ func (f *fakeLoanRepo) FindActiveVariableRateLoans(_ context.Context) ([]model.L
 }
 
 func (f *fakeLoanRepo) FindAll(_ context.Context, _ *dto.ListLoanRequestsQuery) ([]model.LoanRequest, int64, error) {
-  return f.requests, f.total, f.findAllErr
+	return f.requests, f.total, f.findAllErr
 }
 
 // ── Fake Loan Type Repository ────────────────────────────────────────────────

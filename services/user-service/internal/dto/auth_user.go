@@ -46,6 +46,6 @@ func NewAuthUserFromClient(identity *model.Identity, client *model.Client) *Auth
 		LastName:     client.LastName,
 		Email:        identity.Email,
 		Username:     identity.Username,
-		Permissions:  []permission.Permission{},
+		Permissions:  client.RawPermissions(),
 	}
 }

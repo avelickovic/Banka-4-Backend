@@ -316,6 +316,10 @@ definitions:
       last_name:
         maxLength: 100
         type: string
+      permissions:
+        items:
+          $ref: '#/definitions/permission.Permission'
+        type: array
       phone_number:
         type: string
       username:
@@ -373,6 +377,8 @@ definitions:
     - employee.delete
     - client.view
     - client.update
+    - trading
+    - trading.margin
     type: string
     x-enum-varnames:
     - EmployeeView
@@ -381,6 +387,8 @@ definitions:
     - EmployeeDelete
     - ClientView
     - ClientUpdate
+    - Trading
+    - TradingMargin
 info:
   contact: {}
   description: API for managing employees, clients, authentication, and permissions.

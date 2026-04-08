@@ -56,6 +56,22 @@ func (r *loanRepository) FindByIDAndClientID(ctx context.Context, id uint, clien
 	return &loan, nil
 }
 
+func (r *loanRepository) HasActiveByClientID(ctx context.Context, clientID uint) (bool, error) {
+	var count int64
+
+	err := r.db.WithContext(ctx).
+		Model(&model.Loan{}).
+		Joins("JOIN loan_requests ON loan_requests.id = loans.loan_request_id").
+		Where("loan_requests.client_id = ? AND loans.status = ?", clientID, model.LoanStatusActive).
+		Count(&count).Error
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func (r *loanRepository) FindLoanByRequestID(ctx context.Context, requestID uint) (*model.Loan, error) {
 	var loan model.Loan
 	err := r.db.WithContext(ctx).

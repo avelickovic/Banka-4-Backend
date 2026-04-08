@@ -28,6 +28,18 @@ func (c *BankingServiceClient) GetAccountByNumber(ctx context.Context, accountNu
 	return resp, nil
 }
 
+func (c *BankingServiceClient) HasActiveLoan(ctx context.Context, clientID uint64) (*pb.HasActiveLoanResponse, error) {
+	resp, err := c.stub.HasActiveLoan(ctx, &pb.HasActiveLoanRequest{
+		ClientId: clientID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("banking client HasActiveLoan: %w", err)
+	}
+
+	return resp, nil
+}
+
 func (c *BankingServiceClient) CreatePaymentWithoutVerification(ctx context.Context, req *pb.CreatePaymentRequest) (*pb.CreatePaymentResponse, error) {
 	resp, err := c.stub.CreatePaymentWithoutVerification(ctx, req)
 	if err != nil {

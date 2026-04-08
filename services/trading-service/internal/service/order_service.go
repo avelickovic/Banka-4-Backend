@@ -15,6 +15,7 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/pb"
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/permission"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
@@ -147,7 +148,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, req dto.CreateOrderReque
 		return nil, errors.UnauthorizedErr("not authenticated")
 	}
 
-	if err := s.validateAccount(ctx, req.AccountNumber, authCtx); err != nil {
+	account, err := s.validateAccount(ctx, req.AccountNumber, authCtx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -169,6 +171,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, req dto.CreateOrderReque
 	}
 	if exchange == nil {
 		return nil, errors.NotFoundErr("exchange not found")
+	}
+
+	if err := s.validateMarginRequirements(ctx, authCtx, req, listing, exchange, account); err != nil {
+		return nil, err
 	}
 
 	initialPricePerUnit := calculateInitialPricePerUnit(req, listing)
@@ -567,27 +573,111 @@ func (s *OrderService) resolveOrderStatus(ctx context.Context, authCtx *auth.Aut
 	return model.OrderStatusApproved
 }
 
-func (s *OrderService) validateAccount(ctx context.Context, accountNumber string, authCtx *auth.AuthContext) error {
+func (s *OrderService) validateAccount(ctx context.Context, accountNumber string, authCtx *auth.AuthContext) (*pb.GetAccountByNumberResponse, error) {
 	account, err := s.bankingClient.GetAccountByNumber(ctx, accountNumber)
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.NotFound {
-			return errors.NotFoundErr("account not found")
+			return nil, errors.NotFoundErr("account not found")
 		}
-		return errors.ServiceUnavailableErr(err)
+		return nil, errors.ServiceUnavailableErr(err)
 	}
 
 	if authCtx.IdentityType == auth.IdentityClient {
 		if authCtx.ClientID == nil || uint64(*authCtx.ClientID) != account.ClientId {
-			return errors.ForbiddenErr("account does not belong to you")
+			return nil, errors.ForbiddenErr("account does not belong to you")
 		}
 	} else if authCtx.IdentityType == auth.IdentityEmployee {
 		if account.AccountType != "Bank" {
-			return errors.BadRequestErr("employees must use a bank account")
+			return nil, errors.BadRequestErr("employees must use a bank account")
 		}
 	}
 
+	return account, nil
+}
+
+func (s *OrderService) validateMarginRequirements(
+	ctx context.Context,
+	authCtx *auth.AuthContext,
+	req dto.CreateOrderRequest,
+	listing *model.Listing,
+	exchange *model.Exchange,
+	account *pb.GetAccountByNumberResponse,
+) error {
+	if !req.Margin {
+		return nil
+	}
+
+	if authCtx == nil {
+		return errors.UnauthorizedErr("not authenticated")
+	}
+
+	if authCtx.IdentityType == auth.IdentityEmployee && !auth.HasPermission(authCtx.Permissions, permission.TradingMargin) {
+		return errors.ForbiddenErr("margin trading permission required")
+	}
+
+	if authCtx.IdentityType == auth.IdentityClient {
+		if authCtx.ClientID == nil {
+			return errors.UnauthorizedErr("not authenticated")
+		}
+
+		loanResp, err := s.bankingClient.HasActiveLoan(ctx, uint64(*authCtx.ClientID))
+		if err != nil {
+			return errors.ServiceUnavailableErr(err)
+		}
+
+		if !loanResp.GetHasActiveLoan() {
+			return errors.ForbiddenErr("active loan required for margin trading")
+		}
+	}
+
+	initialMarginCost, err := s.initialMarginCostInAccountCurrency(ctx, listing, exchange, account)
+	if err != nil {
+		return err
+	}
+
+	if account.GetAvailableBalance() <= initialMarginCost {
+		return errors.ForbiddenErr("insufficient account funds for initial margin cost")
+	}
+
 	return nil
+}
+
+func (s *OrderService) initialMarginCostInAccountCurrency(
+	ctx context.Context,
+	listing *model.Listing,
+	exchange *model.Exchange,
+	account *pb.GetAccountByNumberResponse,
+) (float64, error) {
+	if listing == nil {
+		return 0, errors.BadRequestErr("listing not found")
+	}
+
+	if exchange == nil {
+		return 0, errors.BadRequestErr("exchange not found")
+	}
+
+	if account == nil {
+		return 0, errors.BadRequestErr("account not found")
+	}
+
+	initialMarginCost := listing.MaintenanceMargin * 1.1
+	if initialMarginCost <= 0 {
+		return 0, nil
+	}
+
+	tradeCurrency := normalizeCurrencyCode(exchange.Currency)
+	accountCurrency := normalizeCurrencyCode(account.GetCurrencyCode())
+	if tradeCurrency == accountCurrency {
+		return initialMarginCost, nil
+	}
+
+	converted, err := s.bankingClient.ConvertCurrency(ctx, initialMarginCost, tradeCurrency, accountCurrency)
+	if err != nil {
+		return 0, errors.ServiceUnavailableErr(err)
+	}
+
+	return converted, nil
 }
 
 func (s *OrderService) checkSupervisor(ctx context.Context) (bool, error) {

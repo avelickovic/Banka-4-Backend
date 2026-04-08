@@ -37,6 +37,16 @@ func (f *fakeSchedulerLoanRepo) FindByIDAndClientID(_ context.Context, _ uint, _
 	return f.loan, nil
 }
 
+func (f *fakeSchedulerLoanRepo) HasActiveByClientID(_ context.Context, _ uint) (bool, error) {
+	for _, loan := range f.loans {
+		if loan.Status == model.LoanStatusActive {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (f *fakeSchedulerLoanRepo) CreateLoan(_ context.Context, loan *model.Loan) error {
 	loan.ID = 1
 	return nil
@@ -336,12 +346,12 @@ func TestOnInstallmentPaid_UpdateInstallmentError(t *testing.T) {
 	sched := newScheduler(loanRepo, nil, nil)
 
 	loan := &model.Loan{
-		ID:              1,
-		RemainingDebt:   50000,
-		PaidInstallments: 2,
-		RepaymentPeriod: 12,
+		ID:                  1,
+		RemainingDebt:       50000,
+		PaidInstallments:    2,
+		RepaymentPeriod:     12,
 		NextInstallmentDate: time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC),
-		Status:          model.LoanStatusActive,
+		Status:              model.LoanStatusActive,
 	}
 	installment := &model.LoanInstallment{ID: 1, Amount: 5000, Status: model.InstallmentStatusPending}
 
@@ -356,12 +366,12 @@ func TestOnInstallmentPaid_UpdateLoanError(t *testing.T) {
 	sched := newScheduler(loanRepo, nil, nil)
 
 	loan := &model.Loan{
-		ID:              1,
-		RemainingDebt:   50000,
-		PaidInstallments: 2,
-		RepaymentPeriod: 12,
+		ID:                  1,
+		RemainingDebt:       50000,
+		PaidInstallments:    2,
+		RepaymentPeriod:     12,
 		NextInstallmentDate: time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC),
-		Status:          model.LoanStatusActive,
+		Status:              model.LoanStatusActive,
 	}
 	installment := &model.LoanInstallment{ID: 1, Amount: 5000, Status: model.InstallmentStatusPending}
 
@@ -491,7 +501,7 @@ func TestSendFailureNotification_RetryingStatus(t *testing.T) {
 	sched := newScheduler(nil, mailer, &fakeUserClient{})
 
 	loan := &model.Loan{
-		ID: 1,
+		ID:          1,
 		LoanRequest: model.LoanRequest{ClientID: 1},
 	}
 	installment := &model.LoanInstallment{
@@ -512,7 +522,7 @@ func TestSendFailureNotification_UnpaidStatus(t *testing.T) {
 	sched := newScheduler(nil, mailer, &fakeUserClient{})
 
 	loan := &model.Loan{
-		ID: 1,
+		ID:          1,
 		LoanRequest: model.LoanRequest{ClientID: 1},
 	}
 	installment := &model.LoanInstallment{
@@ -533,7 +543,7 @@ func TestSendFailureNotification_UserClientError_DoesNotPanic(t *testing.T) {
 	sched := newScheduler(nil, mailer, userClient)
 
 	loan := &model.Loan{
-		ID: 1,
+		ID:          1,
 		LoanRequest: model.LoanRequest{ClientID: 1},
 	}
 	installment := &model.LoanInstallment{

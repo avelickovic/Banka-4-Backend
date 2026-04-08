@@ -3,20 +3,22 @@ package dto
 import (
 	"time"
 
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/permission"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/model"
 )
 
 type ClientResponse struct {
-	Id          uint      `json:"id"`
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
-	Gender      string    `json:"gender"`
-	DateOfBirth time.Time `json:"date_of_birth"`
-	Email       string    `json:"email"`
-	PhoneNumber string    `json:"phone_number"`
-	Address     string    `json:"address"`
-	Username    string    `json:"username"`
-	Active      bool      `json:"active"`
+	Id          uint                    `json:"id"`
+	FirstName   string                  `json:"first_name"`
+	LastName    string                  `json:"last_name"`
+	Gender      string                  `json:"gender"`
+	DateOfBirth time.Time               `json:"date_of_birth"`
+	Email       string                  `json:"email"`
+	PhoneNumber string                  `json:"phone_number"`
+	Address     string                  `json:"address"`
+	Username    string                  `json:"username"`
+	Active      bool                    `json:"active"`
+	Permissions []permission.Permission `json:"permissions"`
 }
 
 type ListClientsResponse struct {
@@ -39,6 +41,7 @@ func ToClientResponse(c *model.Client) *ClientResponse {
 		Address:     c.Address,
 		Username:    c.Identity.Username,
 		Active:      c.Identity.Active,
+		Permissions: c.RawPermissions(),
 	}
 }
 

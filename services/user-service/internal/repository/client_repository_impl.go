@@ -28,6 +28,7 @@ func (r *clientRepository) FindByIdentityID(ctx context.Context, identityID uint
 	var c model.Client
 
 	result := r.db.WithContext(ctx).
+		Preload("Permissions").
 		Preload("Identity").
 		Where("identity_id = ?", identityID).
 		First(&c)
@@ -45,6 +46,7 @@ func (r *clientRepository) FindByIdentityID(ctx context.Context, identityID uint
 func (r *clientRepository) FindByID(ctx context.Context, id uint) (*model.Client, error) {
 	var c model.Client
 	result := r.db.WithContext(ctx).
+		Preload("Permissions").
 		Preload("Identity").
 		First(&c, id)
 
@@ -75,17 +77,33 @@ func (r *clientRepository) FindAll(ctx context.Context, query *dto.ListClientsQu
 	}
 
 	// Ukupan broj
-	db.Count(&count)
 	if err := db.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 	// Paginacija
 	offset := (query.Page - 1) * query.PageSize
-	err := db.Preload("Identity").Limit(query.PageSize).Offset(offset).Find(&clients).Error
+	err := db.Preload("Identity").Preload("Permissions").Limit(query.PageSize).Offset(offset).Find(&clients).Error
 
 	return clients, count, err
 }
+
 func (r *clientRepository) Update(ctx context.Context, client *model.Client) error {
-	db := db.DBFromContext(ctx, r.db)
-	return db.WithContext(ctx).Save(client).Error
+	currentDB := db.DBFromContext(ctx, r.db)
+	return currentDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit("Permissions", "Identity").Save(client).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("client_id = ?", client.ClientID).Delete(&model.ClientPermission{}).Error; err != nil {
+			return err
+		}
+
+		if len(client.Permissions) > 0 {
+			if err := tx.Create(&client.Permissions).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }

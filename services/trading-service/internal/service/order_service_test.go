@@ -12,6 +12,7 @@ import (
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/pb"
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/permission"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/repository"
@@ -190,14 +191,24 @@ func (c *fakeUserServiceClient) GetAllActuaries(_ context.Context, _, _ int32, _
 // ── Fake Banking Client (order-specific) ──────────────────────────
 
 type fakeOrderBankingClient struct {
-	accountResp    *pb.GetAccountByNumberResponse
-	accountErr     error
-	settlementResp *pb.ExecuteTradeSettlementResponse
-	settlementErr  error
+	accountResp      *pb.GetAccountByNumberResponse
+	accountErr       error
+	hasActiveLoan    bool
+	hasActiveLoanErr error
+	settlementResp   *pb.ExecuteTradeSettlementResponse
+	settlementErr    error
 }
 
 func (c *fakeOrderBankingClient) GetAccountByNumber(_ context.Context, _ string) (*pb.GetAccountByNumberResponse, error) {
 	return c.accountResp, c.accountErr
+}
+
+func (c *fakeOrderBankingClient) HasActiveLoan(_ context.Context, _ uint64) (*pb.HasActiveLoanResponse, error) {
+	if c.hasActiveLoanErr != nil {
+		return nil, c.hasActiveLoanErr
+	}
+
+	return &pb.HasActiveLoanResponse{HasActiveLoan: c.hasActiveLoan}, nil
 }
 
 func (c *fakeOrderBankingClient) CreatePaymentWithoutVerification(_ context.Context, _ *pb.CreatePaymentRequest) (*pb.CreatePaymentResponse, error) {
@@ -224,6 +235,7 @@ func clientAuthCtx() context.Context {
 		IdentityID:   1,
 		IdentityType: auth.IdentityClient,
 		ClientID:     &clientID,
+		Permissions:  []permission.Permission{permission.Trading, permission.TradingMargin},
 	})
 }
 
@@ -232,6 +244,7 @@ func employeeAuthCtx(employeeID uint) context.Context {
 		IdentityID:   100,
 		IdentityType: auth.IdentityEmployee,
 		EmployeeID:   &employeeID,
+		Permissions:  []permission.Permission{permission.Trading, permission.TradingMargin},
 	})
 }
 
@@ -240,6 +253,7 @@ func supervisorAuthCtx(employeeID uint) context.Context {
 		IdentityID:   200,
 		IdentityType: auth.IdentityEmployee,
 		EmployeeID:   &employeeID,
+		Permissions:  []permission.Permission{permission.Trading, permission.TradingMargin},
 	})
 }
 
@@ -276,10 +290,11 @@ func defaultExchange() *model.Exchange {
 
 func defaultListing() *model.Listing {
 	return &model.Listing{
-		ListingID:   1,
-		ExchangeMIC: "XTST",
-		Price:       150.0,
-		Ask:         151.0,
+		ListingID:         1,
+		ExchangeMIC:       "XTST",
+		Price:             150.0,
+		Ask:               151.0,
+		MaintenanceMargin: 10.0,
 		Asset: &model.Asset{
 			Ticker:    "AAPL",
 			Name:      "Apple Inc",
@@ -290,8 +305,10 @@ func defaultListing() *model.Listing {
 
 func defaultAccountResp(clientID uint64) *pb.GetAccountByNumberResponse {
 	return &pb.GetAccountByNumberResponse{
-		ClientId:    clientID,
-		AccountType: "Current",
+		ClientId:         clientID,
+		AccountType:      "Current",
+		CurrencyCode:     "USD",
+		AvailableBalance: 1000,
 	}
 }
 
@@ -397,6 +414,144 @@ func TestCreateOrder_LimitSell_Success(t *testing.T) {
 	require.Equal(t, model.OrderDirectionSell, order.Direction)
 	require.NotNil(t, order.LimitValue)
 	require.Equal(t, 155.0, *order.LimitValue)
+}
+
+func TestCreateOrder_ClientMargin_WithActiveLoanAndFunds_Success(t *testing.T) {
+	listing := defaultListing()
+	exchange := defaultExchange()
+
+	svc := newTestOrderService(
+		&fakeOrderRepo{},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		&fakeUserServiceClient{},
+		&fakeOrderBankingClient{accountResp: defaultAccountResp(10), hasActiveLoan: true},
+	)
+
+	ctx := clientAuthCtx()
+
+	req := dto.CreateOrderRequest{
+		ListingID:     1,
+		AccountNumber: "444000100000000110",
+		OrderType:     model.OrderTypeMarket,
+		Direction:     model.OrderDirectionBuy,
+		Quantity:      10,
+		Margin:        true,
+	}
+
+	order, err := svc.CreateOrder(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, order)
+	require.True(t, order.Margin)
+}
+
+func TestCreateOrder_ClientMargin_WithoutActiveLoan_Forbidden(t *testing.T) {
+	listing := defaultListing()
+	exchange := defaultExchange()
+
+	svc := newTestOrderService(
+		&fakeOrderRepo{},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		&fakeUserServiceClient{},
+		&fakeOrderBankingClient{accountResp: defaultAccountResp(10), hasActiveLoan: false},
+	)
+
+	ctx := clientAuthCtx()
+	req := dto.CreateOrderRequest{
+		ListingID:     1,
+		AccountNumber: "444000100000000110",
+		OrderType:     model.OrderTypeMarket,
+		Direction:     model.OrderDirectionBuy,
+		Quantity:      10,
+		Margin:        true,
+	}
+
+	order, err := svc.CreateOrder(ctx, req)
+	require.Error(t, err)
+	require.Nil(t, order)
+	require.Contains(t, err.Error(), "active loan required for margin trading")
+}
+
+func TestCreateOrder_EmployeeMargin_WithoutPermission_Forbidden(t *testing.T) {
+	listing := defaultListing()
+	exchange := defaultExchange()
+
+	svc := newTestOrderService(
+		&fakeOrderRepo{},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		&fakeUserServiceClient{},
+		&fakeOrderBankingClient{accountResp: &pb.GetAccountByNumberResponse{
+			AccountType:      "Bank",
+			CurrencyCode:     "USD",
+			AvailableBalance: 1000,
+		}},
+	)
+
+	employeeID := uint(5)
+	ctx := auth.SetAuthOnContext(context.Background(), &auth.AuthContext{
+		IdentityID:   100,
+		IdentityType: auth.IdentityEmployee,
+		EmployeeID:   &employeeID,
+		Permissions:  []permission.Permission{permission.Trading},
+	})
+	req := dto.CreateOrderRequest{
+		ListingID:     1,
+		AccountNumber: "444000100000000110",
+		OrderType:     model.OrderTypeMarket,
+		Direction:     model.OrderDirectionBuy,
+		Quantity:      10,
+		Margin:        true,
+	}
+
+	order, err := svc.CreateOrder(ctx, req)
+	require.Error(t, err)
+	require.Nil(t, order)
+	require.Contains(t, err.Error(), "margin trading permission required")
+}
+
+func TestCreateOrder_Margin_WithInsufficientFunds_Forbidden(t *testing.T) {
+	listing := defaultListing()
+	exchange := defaultExchange()
+
+	svc := newTestOrderService(
+		&fakeOrderRepo{},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		&fakeUserServiceClient{},
+		&fakeOrderBankingClient{accountResp: defaultAccountResp(10), hasActiveLoan: true},
+	)
+
+	accountResp := defaultAccountResp(10)
+	accountResp.AvailableBalance = 10
+	svc = newTestOrderService(
+		&fakeOrderRepo{},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		&fakeUserServiceClient{},
+		&fakeOrderBankingClient{accountResp: accountResp, hasActiveLoan: true},
+	)
+
+	ctx := clientAuthCtx()
+	req := dto.CreateOrderRequest{
+		ListingID:     1,
+		AccountNumber: "444000100000000110",
+		OrderType:     model.OrderTypeMarket,
+		Direction:     model.OrderDirectionBuy,
+		Quantity:      10,
+		Margin:        true,
+	}
+
+	order, err := svc.CreateOrder(ctx, req)
+	require.Error(t, err)
+	require.Nil(t, order)
+	require.Contains(t, err.Error(), "insufficient account funds")
 }
 
 func TestCreateOrder_MissingAuthContext(t *testing.T) {

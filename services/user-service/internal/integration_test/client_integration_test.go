@@ -338,7 +338,7 @@ func TestUpdateClient(t *testing.T) {
 		{
 			name:       "valid partial update",
 			clientID:   client.ClientID,
-			body:       map[string]any{"first_name": "Novo", "phone_number": "0609999999"},
+			body:       map[string]any{"first_name": "Novo", "phone_number": "0609999999", "permissions": []string{string(permission.Trading), string(permission.TradingMargin)}},
 			auth:       authHeader(t, updaterIdentity.ID),
 			wantStatus: http.StatusOK,
 			assertResult: func(t *testing.T, response clientResponse) {

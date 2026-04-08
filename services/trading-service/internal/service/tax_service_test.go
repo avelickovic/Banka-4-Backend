@@ -115,6 +115,10 @@ func (f *fakeBankingClient) GetAccountByNumber(_ context.Context, _ string) (*pb
 	return nil, nil
 }
 
+func (f *fakeBankingClient) HasActiveLoan(_ context.Context, _ uint64) (*pb.HasActiveLoanResponse, error) {
+	return &pb.HasActiveLoanResponse{HasActiveLoan: false}, nil
+}
+
 func (f *fakeBankingClient) CreatePaymentWithoutVerification(_ context.Context, _ *pb.CreatePaymentRequest) (*pb.CreatePaymentResponse, error) {
 	return f.paymentResp, f.paymentErr
 }
@@ -131,9 +135,8 @@ func (f *fakeBankingClient) ConvertCurrency(_ context.Context, amount float64, _
 }
 
 func (f *fakeBankingClient) ExecuteTradeSettlement(ctx context.Context, accountNumber, currencyCode string, direction pb.TradeSettlementDirection, amount float64) (*pb.ExecuteTradeSettlementResponse, error) {
-	return nil, nil;
+	return nil, nil
 }
-
 
 // ── Constructor ────────────────────────────────────────────────────
 

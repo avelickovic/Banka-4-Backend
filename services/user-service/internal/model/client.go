@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/permission"
+)
 
 type Client struct {
 	ClientID                 uint   `gorm:"primaryKey"`
@@ -13,5 +17,29 @@ type Client struct {
 	PhoneNumber              string `gorm:"size:20"`
 	Address                  string `gorm:"size:255"`
 
-	Identity Identity
+	Identity    Identity
+	Permissions []ClientPermission `gorm:"foreignKey:ClientID"`
+}
+
+func (c *Client) HasPermission(p permission.Permission) bool {
+	for _, cp := range c.Permissions {
+		if cp.Permission == p {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Client) RawPermissions() []permission.Permission {
+	if c == nil || len(c.Permissions) == 0 {
+		return []permission.Permission{}
+	}
+
+	permissions := make([]permission.Permission, 0, len(c.Permissions))
+	for _, cp := range c.Permissions {
+		permissions = append(permissions, cp.Permission)
+	}
+
+	return permissions
 }

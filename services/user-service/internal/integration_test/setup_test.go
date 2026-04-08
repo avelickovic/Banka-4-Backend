@@ -104,6 +104,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&model.ResetToken{},
 		&model.RefreshToken{},
 		&model.EmployeePermission{},
+		&model.ClientPermission{},
 	); err != nil {
 		t.Fatalf("auto migrate test schema: %v", err)
 	}

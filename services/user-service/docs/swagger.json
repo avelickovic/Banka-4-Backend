@@ -1599,6 +1599,12 @@
                     "type": "string",
                     "maxLength": 100
                 },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/permission.Permission"
+                    }
+                },
                 "phone_number": {
                     "type": "string"
                 },
@@ -1681,7 +1687,9 @@
                 "employee.update",
                 "employee.delete",
                 "client.view",
-                "client.update"
+                "client.update",
+                "trading",
+                "trading.margin"
             ],
             "x-enum-varnames": [
                 "EmployeeView",
@@ -1689,7 +1697,9 @@
                 "EmployeeUpdate",
                 "EmployeeDelete",
                 "ClientView",
-                "ClientUpdate"
+                "ClientUpdate",
+                "Trading",
+                "TradingMargin"
             ]
         }
     },

@@ -10,6 +10,9 @@ const (
 
 	ClientView   Permission = "client.view"
 	ClientUpdate Permission = "client.update"
+
+	Trading       Permission = "trading"
+	TradingMargin Permission = "trading.margin"
 )
 
 var All = []Permission{
@@ -19,4 +22,6 @@ var All = []Permission{
 	EmployeeDelete,
 	ClientView,
 	ClientUpdate,
+	Trading,
+	TradingMargin,
 }

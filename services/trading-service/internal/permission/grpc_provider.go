@@ -18,14 +18,15 @@ func NewGrpcPermissionProvider(client pb.PermissionServiceClient) *GrpcPermissio
 }
 
 func (p *GrpcPermissionProvider) GetPermissions(ctx context.Context, claims *jwt.Claims) ([]perm.Permission, error) {
-	if auth.IdentityType(claims.IdentityType) != auth.IdentityEmployee {
-		return []perm.Permission{}, nil
-	}
-
 	req := &pb.GetPermissionsRequest{
 		IdentityId:   uint64(claims.IdentityID),
 		IdentityType: claims.IdentityType,
-		SubjectId:    uint64(*claims.EmployeeID),
+	}
+
+	if subjectID, ok, err := auth.SubjectIDFromClaims(claims); err != nil {
+		return nil, err
+	} else if ok {
+		req.SubjectId = uint64(subjectID)
 	}
 
 	resp, err := p.client.GetPermissions(ctx, req)

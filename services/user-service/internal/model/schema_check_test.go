@@ -48,6 +48,7 @@ func TestSchemaAutoMigrate_UserService(t *testing.T) {
 		&ResetToken{},
 		&RefreshToken{},
 		&EmployeePermission{},
+		&ClientPermission{},
 	); err != nil {
 		t.Fatalf("auto migrate schema: %v", err)
 	}

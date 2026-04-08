@@ -1607,6 +1607,12 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100
                 },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/permission.Permission"
+                    }
+                },
                 "phone_number": {
                     "type": "string"
                 },
@@ -1689,7 +1695,9 @@ const docTemplate = `{
                 "employee.update",
                 "employee.delete",
                 "client.view",
-                "client.update"
+                "client.update",
+                "trading",
+                "trading.margin"
             ],
             "x-enum-varnames": [
                 "EmployeeView",
@@ -1697,7 +1705,9 @@ const docTemplate = `{
                 "EmployeeUpdate",
                 "EmployeeDelete",
                 "ClientView",
-                "ClientUpdate"
+                "ClientUpdate",
+                "Trading",
+                "TradingMargin"
             ]
         }
     },

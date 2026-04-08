@@ -79,6 +79,7 @@ func main() {
 				&model.ResetToken{},
 				&model.RefreshToken{},
 				&model.EmployeePermission{},
+				&model.ClientPermission{},
 			); err != nil {
 				return err
 			}

@@ -147,6 +147,7 @@ func hasPermission(perm permission.Permission, permissions []permission.Permissi
 			return true
 		}
 	}
+
 	return false
 }
 

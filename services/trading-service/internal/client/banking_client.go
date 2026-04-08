@@ -8,6 +8,7 @@ import (
 
 type BankingClient interface {
 	GetAccountByNumber(ctx context.Context, accountNumber string) (*pb.GetAccountByNumberResponse, error)
+	HasActiveLoan(ctx context.Context, clientID uint64) (*pb.HasActiveLoanResponse, error)
 	CreatePaymentWithoutVerification(ctx context.Context, req *pb.CreatePaymentRequest) (*pb.CreatePaymentResponse, error)
 	GetAccountsByClientID(ctx context.Context, clientID uint64) (*pb.GetAccountsByClientIDResponse, error)
 	ConvertCurrency(ctx context.Context, amount float64, fromCode, toCode string) (float64, error)

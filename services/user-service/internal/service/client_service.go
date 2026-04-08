@@ -11,6 +11,7 @@ import (
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/permission"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/config"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/model"
@@ -164,6 +165,10 @@ func (s *ClientService) UpdateClient(ctx context.Context, id uint, req *dto.Upda
 		client.Address = *req.Address
 	}
 
+	if req.Permissions != nil {
+		client.Permissions = mapClientPermissions(client.ClientID, *req.Permissions)
+	}
+
 	if err := s.clientRepo.Update(ctx, client); err != nil {
 		return nil, errors.InternalErr(err)
 	}
@@ -190,4 +195,16 @@ func generateMobileVerificationSecret() (string, error) {
 	}
 
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret), nil
+}
+
+func mapClientPermissions(clientID uint, permissions []permission.Permission) []model.ClientPermission {
+	result := make([]model.ClientPermission, len(permissions))
+	for i, p := range permissions {
+		result[i] = model.ClientPermission{
+			ClientID:   clientID,
+			Permission: p,
+		}
+	}
+
+	return result
 }
