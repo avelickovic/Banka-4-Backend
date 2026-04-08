@@ -313,6 +313,13 @@ func Run(db *gorm.DB) error {
 		"nikola@raf.rs",
 	}
 
+	agentPermissions := []permission.Permission{
+		permission.ClientView,
+		permission.ClientUpdate,
+		permission.Trading,
+		permission.TradingMargin,
+	}
+
 	for _, email := range agentEmails {
 		var identity model.Identity
 		if err := db.Where("email = ?", email).First(&identity).Error; err != nil {
@@ -349,6 +356,24 @@ func Run(db *gorm.DB) error {
 			existing.IsAgent = true
 			existing.IsSupervisor = false
 			if err := db.Save(&existing).Error; err != nil {
+				return err
+			}
+		}
+
+		for _, perm := range agentPermissions {
+			var existingPerm model.EmployeePermission
+			err := db.Where("employee_id = ? AND permission = ?", employee.EmployeeID, string(perm)).
+				First(&existingPerm).Error
+
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+					newPerm := model.EmployeePermission{
+					EmployeeID: employee.EmployeeID,
+					Permission: perm,
+				}
+				if err := db.Create(&newPerm).Error; err != nil {
+					return err
+				}
+			} else if err != nil {
 				return err
 			}
 		}
