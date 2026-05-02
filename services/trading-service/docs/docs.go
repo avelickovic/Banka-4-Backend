@@ -3378,8 +3378,14 @@ const docTemplate = `{
                 "acquisition_date": {
                     "type": "string"
                 },
+                "amount": {
+                    "type": "number"
+                },
                 "change": {
                     "type": "number"
+                },
+                "currency": {
+                    "type": "string"
                 },
                 "initial_margin_cost": {
                     "type": "number"
