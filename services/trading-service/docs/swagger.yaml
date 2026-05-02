@@ -605,6 +605,133 @@ info:
     market operations.
   title: Trading Service API
   version: "1.0"
+  dto.AcceptOfferRequest:
+    properties:
+      account_number:
+        description: Required when seller accepts for the first time.
+        type: string
+    type: object
+  dto.CounterOfferRequest:
+    properties:
+      account_number:
+        description: Required on seller's first counter-offer.
+        type: string
+      amount:
+        minimum: 1
+        type: integer
+      premium:
+        type: number
+      price_per_stock:
+        type: number
+      settlement_date:
+        type: string
+    required:
+    - amount
+    - premium
+    - price_per_stock
+    - settlement_date
+    type: object
+  dto.CreateOtcOfferRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+      buyer_account_number:
+        type: string
+      premium:
+        type: number
+      price_per_stock:
+        type: number
+      seller_id:
+        type: integer
+      settlement_date:
+        type: string
+      stock_id:
+        type: integer
+    required:
+    - amount
+    - buyer_account_number
+    - premium
+    - price_per_stock
+    - seller_id
+    - settlement_date
+    - stock_id
+    type: object
+  dto.OtcOfferResponse:
+    properties:
+      amount:
+        type: integer
+      buyer_account_number:
+        type: string
+      buyer_id:
+        type: integer
+      created_at:
+        type: string
+      last_modified:
+        type: string
+      modified_by:
+        type: integer
+      option_contract_id:
+        type: integer
+      otc_offer_id:
+        type: integer
+      premium:
+        type: number
+      price_per_stock:
+        type: number
+      seller_account_number:
+        type: string
+      seller_id:
+        type: integer
+      settlement_date:
+        type: string
+      status:
+        type: string
+      stock_id:
+        type: integer
+      stock_name:
+        type: string
+      ticker:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.OtcOptionContractResponse:
+    properties:
+      amount:
+        type: integer
+      buyer_id:
+        type: integer
+      created_at:
+        type: string
+      exercised_at:
+        type: string
+      is_exercised:
+        type: boolean
+      otc_offer_id:
+        type: integer
+      otc_option_contract_id:
+        type: integer
+      premium:
+        type: number
+      seller_id:
+        type: integer
+      settlement_date:
+        type: string
+      stock_id:
+        type: integer
+      stock_name:
+        type: string
+      strike_price:
+        type: number
+      ticker:
+        type: string
+    type: object
+  dto.RejectOfferRequest:
+    properties:
+      comment:
+        type: string
+    type: object
 paths:
   /api/actuary/{actId}/accumulated-tax:
     get:
@@ -1570,6 +1697,225 @@ paths:
       summary: List users with tax information
       tags:
       - tax
+  /api/otc/contracts:
+    get:
+      description: Returns all option contracts (CALL) created from accepted OTC offers
+        where the authenticated user is either the buyer or the seller.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.OtcOptionContractResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: List OTC option contracts
+      tags:
+      - otc
+  /api/otc/offers:
+    post:
+      consumes:
+      - application/json
+      description: Buyer initiates a new OTC negotiation with a seller for publicly
+        listed shares.
+      parameters:
+      - description: Offer details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOtcOfferRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.OtcOfferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Create OTC offer
+      tags:
+      - otc
+  /api/otc/offers/active:
+    get:
+      description: Returns all ongoing negotiations (status=ACTIVE) where the authenticated
+        user is either the buyer or the seller.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.OtcOfferResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: List active OTC offers
+      tags:
+      - otc
+  /api/otc/offers/{id}/accept:
+    patch:
+      consumes:
+      - application/json
+      description: The party opposite to ModifiedBy accepts the offer. An option contract
+        is created and the premium is immediately transferred from the buyer's account
+        to the seller's. If the seller has not yet provided their account number, it
+        must be supplied here.
+      parameters:
+      - description: Offer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Seller account number (required on seller's first participation)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/dto.AcceptOfferRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.OtcOptionContractResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Accept OTC offer
+      tags:
+      - otc
+  /api/otc/offers/{id}/counter:
+    put:
+      consumes:
+      - application/json
+      description: Either party may update the offer parameters (amount, price, premium,
+        settlement date). Parties alternate turns — the same user cannot send two
+        consecutive counter-offers.
+      parameters:
+      - description: Offer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated offer parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CounterOfferRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OtcOfferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Send counter-offer
+      tags:
+      - otc
+  /api/otc/offers/{id}/reject:
+    patch:
+      consumes:
+      - application/json
+      description: Either party may reject the offer, terminating the negotiation.
+      parameters:
+      - description: Offer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Optional rejection comment
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/dto.RejectOfferRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OtcOfferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Reject OTC offer
+      tags:
+      - otc
 securityDefinitions:
   BearerAuth:
     description: JWT Authorization header using the Bearer scheme.

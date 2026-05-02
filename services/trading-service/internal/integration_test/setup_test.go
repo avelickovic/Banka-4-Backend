@@ -78,6 +78,8 @@ func TestMain(m *testing.M) {
 		&model.OrderTransaction{},
 		&model.AccumulatedTax{},
 		&model.TaxCollection{},
+		&model.OtcOffer{},
+		&model.OtcOptionContract{},
 	); err != nil {
 		log.Fatalf("auto migrate test schema: %v", err)
 	}
@@ -245,6 +247,8 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 	forexRepo := repository.NewForexRepository(db)
 	optionRepo := repository.NewOptionRepository(db)
 	taxRepo := repository.NewTaxRepository(db)
+	otcOfferRepo := repository.NewOtcOfferRepository(db)
+	otcContractRepo := repository.NewOtcOptionContractRepository(db)
 
 	exchangeSvc := service.NewExchangeService(exchangeRepo)
 	listingSvc := service.NewListingService(listingRepo, futuresRepo, forexRepo, optionRepo)
@@ -252,6 +256,7 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 	var taxRecorder service.TaxRecorder = &fakeTaxRecorder{}
 	orderSvc := service.NewOrderService(orderRepo, orderTxRepo, exchangeRepo, listingRepo, assetOwnershipRepo, futuresRepo, optionRepo, userClient, bankingClient, taxRecorder)
 	portfolioSvc := service.NewPortfolioService(assetOwnershipRepo, stockRepo, optionRepo, futuresRepo, forexRepo, bankingClient)
+	otcSvc := service.NewOtcOfferService(otcOfferRepo, otcContractRepo, assetOwnershipRepo, stockRepo, bankingClient)
 
 	taxSvc := service.NewTaxService(taxRepo, bankingClient, cfg)
 
@@ -261,12 +266,13 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 	orderHandler := handler.NewOrderHandler(orderSvc)
 	portfolioHandler := handler.NewPortfolioHandler(portfolioSvc)
 	taxHandler := handler.NewTaxHandler(taxSvc, userClient)
+	otcHandler := handler.NewOtcOfferHandler(otcSvc)
 
 	verifier := auth.TokenVerifier(commonjwt.NewJWTVerifier(cfg.JWTSecret))
 
 	r := gin.New()
 	server.InitRouter(r, cfg)
-	server.SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, verifier, permProvider, userClient)
+	server.SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, verifier, permProvider, userClient, otcHandler)
 
 	return r, userClient
 }

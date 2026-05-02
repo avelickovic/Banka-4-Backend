@@ -14,29 +14,27 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/repository"
 )
 
-// OtcOfferService implementira poslovnu logiku za OTC pregovore i sklapanje
-// opcionih ugovora prema specifikaciji Celine 4 (OTC trgovina).
+// OtcOfferService implements the business logic for OTC negotiations and option
+// contract creation as specified in Feature 4 (OTC trading).
 //
-// Ključni principi koje servis poštuje:
+// Key invariants enforced by this service:
 //
-//  1. Aktivna ponuda i opcioni ugovor su DVA RAZLIČITA entiteta. Pregovor
-//     se vodi nad OtcOffer-om; tek po prihvatanju nastaje OtcOptionContract.
+//  1. An active offer and an option contract are TWO DISTINCT entities. Negotiation
+//     happens on OtcOffer; OtcOptionContract is only created upon acceptance.
 //
-//  2. Kontraponuda AŽURIRA postojeći OtcOffer (Amount, Price, Premium,
-//     SettlementDate, ModifiedBy, LastModified). Strane se NE menjaju.
+//  2. A counter-offer UPDATES the existing OtcOffer (Amount, Price, Premium,
+//     SettlementDate, ModifiedBy, LastModified). The parties never change.
 //
-//  3. Kontraponudu naizmenično šalju obe strane. Isti korisnik ne može
-//     dvaput za redom — druga strana mora odgovoriti.
+//  3. Counter-offers alternate between parties. The same user cannot send two
+//     consecutive counter-offers — the other side must respond first.
 //
-//  4. Prihvata isključivo strana KOJOJ je stigla zadnja izmena (suprotna
-//     od ModifiedBy).
+//  4. Only the party OPPOSITE to ModifiedBy may accept the current offer.
 //
-//  5. Pri prihvatanju: kreira se OtcOptionContract i premium se prebacuje
-//     sa kupčevog računa na prodavčev. (TODO za pravu SAGA implementaciju.)
+//  5. On acceptance: an OtcOptionContract is created and the premium is transferred
+//     from the buyer's account to the seller's. (TODO: replace with SAGA.)
 //
-//  6. Kapacitet prodavca se validuje prema speci 3+7+2: PublicAmount mora
-//     pokriti zbir svih aktivnih pregovora i važećih opcionih ugovora za
-//     isti stock.
+//  6. Seller capacity is validated per spec 3+7+2: PublicAmount must cover the
+//     sum of all active negotiations and valid option contracts for the same stock.
 type OtcOfferService struct {
 	offerRepo          repository.OtcOfferRepository
 	optionContractRepo repository.OtcOptionContractRepository
@@ -63,7 +61,7 @@ func NewOtcOfferService(
 	}
 }
 
-// CreateOffer — kupac inicira OTC pregovor sa prodavcem za njegove javne akcije.
+// CreateOffer initiates a new OTC negotiation on behalf of the buyer.
 func (s *OtcOfferService) CreateOffer(ctx context.Context, req dto.CreateOtcOfferRequest) (*model.OtcOffer, error) {
 	buyerID, err := auth.GetSubjectFromContext(ctx)
 	if err != nil {
@@ -71,20 +69,18 @@ func (s *OtcOfferService) CreateOffer(ctx context.Context, req dto.CreateOtcOffe
 	}
 
 	if buyerID == req.SellerID {
-		return nil, errors.BadRequestErr("ne možete poslati ponudu samom sebi")
+		return nil, errors.BadRequestErr("cannot send an offer to yourself")
 	}
 	if req.SettlementDate.Before(s.now()) {
-		return nil, errors.BadRequestErr("settlement date mora biti u budućnosti")
+		return nil, errors.BadRequestErr("settlement date must be in the future")
 	}
 
-	// Validacija da prodavac može da pokrije i ovu ponudu uz sve postojeće obaveze.
 	if err := s.validateSellerCapacity(ctx, req.SellerID, req.StockID, req.Amount, nil); err != nil {
 		return nil, err
 	}
 
-	// Validacija da kupčev račun postoji.
 	if _, err := s.bankingClient.GetAccountByNumber(ctx, req.BuyerAccountNumber); err != nil {
-		return nil, errors.BadRequestErr("kupčev račun nije validan")
+		return nil, errors.BadRequestErr("buyer account number is invalid")
 	}
 
 	now := s.now()
@@ -99,14 +95,13 @@ func (s *OtcOfferService) CreateOffer(ctx context.Context, req dto.CreateOtcOffe
 		BuyerAccountNumber: req.BuyerAccountNumber,
 		Status:             model.OtcOfferStatusActive,
 		LastModified:       now,
-		ModifiedBy:         buyerID, // kupac je inicirao -> sad prodavac na potezu
+		ModifiedBy:         buyerID, // buyer initiated → seller's turn next
 	}
 
 	if err := s.offerRepo.Create(ctx, offer); err != nil {
 		return nil, errors.InternalErr(err)
 	}
 
-	// Reload da bismo uključili Stock/Asset preload za response.
 	created, err := s.offerRepo.FindByID(ctx, offer.OtcOfferID)
 	if err != nil {
 		return nil, errors.InternalErr(err)
@@ -114,11 +109,11 @@ func (s *OtcOfferService) CreateOffer(ctx context.Context, req dto.CreateOtcOffe
 	return created, nil
 }
 
-// SendCounterOffer — bilo koja strana ažurira parametre postojećeg pregovora.
+// SendCounterOffer allows either party to update the negotiation parameters.
 //
-// Spec: pregovor je back-and-forth sve dok jedna strana ne odustane ili dok
-// druga strana ne prihvati. Strane se ne menjaju, ne pravi se nova ponuda —
-// samo se ažuriraju polja i postavlja se novi ModifiedBy.
+// The negotiation is a back-and-forth until one side rejects or accepts. The
+// parties never change; no new offer is created — only the fields and ModifiedBy
+// are updated.
 func (s *OtcOfferService) SendCounterOffer(ctx context.Context, offerID uint, req dto.CounterOfferRequest) (*model.OtcOffer, error) {
 	callerID, err := auth.GetSubjectFromContext(ctx)
 	if err != nil {
@@ -130,36 +125,33 @@ func (s *OtcOfferService) SendCounterOffer(ctx context.Context, offerID uint, re
 		return nil, errors.InternalErr(err)
 	}
 	if offer == nil {
-		return nil, errors.NotFoundErr("ponuda nije pronađena")
+		return nil, errors.NotFoundErr("offer not found")
 	}
 
 	if err := s.validateParticipantAndState(offer, callerID); err != nil {
 		return nil, err
 	}
 
-	// Ne može isti korisnik dvaput za redom — drugi je na potezu.
 	if offer.ModifiedBy == callerID {
-		return nil, errors.BadRequestErr("druga strana je na potezu — ne možete poslati dve uzastopne kontraponude")
+		return nil, errors.BadRequestErr("it is the other party's turn — you cannot send two consecutive counter-offers")
 	}
 
 	if req.SettlementDate.Before(s.now()) {
-		return nil, errors.BadRequestErr("settlement date mora biti u budućnosti")
+		return nil, errors.BadRequestErr("settlement date must be in the future")
 	}
 
-	// Ako prodavac menja Amount, validuj kapacitet (izuzimajući trenutnu ponudu iz sume).
 	if callerID == offer.SellerID {
 		if err := s.validateSellerCapacity(ctx, offer.SellerID, offer.StockID, req.Amount, &offer.OtcOfferID); err != nil {
 			return nil, err
 		}
 	}
 
-	// Ako prodavac prvi put učestvuje, postavi njegov račun za kasniji premium transfer.
 	if callerID == offer.SellerID && offer.SellerAccountNumber == nil {
 		if req.AccountNumber == nil {
-			return nil, errors.BadRequestErr("seller_account_number je obavezan u prvoj prodavčevoj kontraponudi")
+			return nil, errors.BadRequestErr("seller_account_number is required in the seller's first counter-offer")
 		}
 		if _, err := s.bankingClient.GetAccountByNumber(ctx, *req.AccountNumber); err != nil {
-			return nil, errors.BadRequestErr("prodavčev račun nije validan")
+			return nil, errors.BadRequestErr("seller account number is invalid")
 		}
 		offer.SellerAccountNumber = req.AccountNumber
 	}
@@ -182,14 +174,14 @@ func (s *OtcOfferService) SendCounterOffer(ctx context.Context, offerID uint, re
 	return updated, nil
 }
 
-// AcceptOffer — strana SUPROTNA od ModifiedBy prihvata ponudu.
+// AcceptOffer is called by the party OPPOSITE to ModifiedBy to accept the offer.
 //
-// Pri prihvatanju:
-//
-//  1. finalna validacija kapaciteta prodavca,
-//  2. prebacivanje premije sa kupčevog računa na prodavčev,
-//  3. kreiranje OtcOptionContract,
-//  4. prelazak ponude u status ACCEPTED sa linkom na ugovor.
+// On acceptance:
+//  1. final seller capacity validation,
+//  2. premium transfer from buyer's account to seller's,
+//  3. OtcOptionContract is created,
+//  4. seller's reserved_amount is increased by the contracted quantity,
+//  5. offer status transitions to ACCEPTED with a link to the contract.
 func (s *OtcOfferService) AcceptOffer(ctx context.Context, offerID uint, req dto.AcceptOfferRequest) (*model.OtcOptionContract, error) {
 	callerID, err := auth.GetSubjectFromContext(ctx)
 	if err != nil {
@@ -201,53 +193,47 @@ func (s *OtcOfferService) AcceptOffer(ctx context.Context, offerID uint, req dto
 		return nil, errors.InternalErr(err)
 	}
 	if offer == nil {
-		return nil, errors.NotFoundErr("ponuda nije pronađena")
+		return nil, errors.NotFoundErr("offer not found")
 	}
 
 	if err := s.validateParticipantAndState(offer, callerID); err != nil {
 		return nil, err
 	}
 
-	// Prihvata samo strana kojoj je stigla zadnja ponuda (suprotna od ModifiedBy).
 	if offer.ModifiedBy == callerID {
-		return nil, errors.BadRequestErr("ne možete prihvatiti sopstvenu ponudu — druga strana treba da prihvati ili pošalje kontraponudu")
+		return nil, errors.BadRequestErr("you cannot accept your own offer — the other party must accept or send a counter-offer")
 	}
 
-	// Ako prodavac prvi put učestvuje (kupac kreirao -> prodavac direktno prihvata),
-	// prodavčev račun mora biti prosleđen ovde.
 	if callerID == offer.SellerID && offer.SellerAccountNumber == nil {
 		if req.AccountNumber == nil {
-			return nil, errors.BadRequestErr("seller_account_number je obavezan pri prihvatanju")
+			return nil, errors.BadRequestErr("seller_account_number is required when accepting")
 		}
 		if _, err := s.bankingClient.GetAccountByNumber(ctx, *req.AccountNumber); err != nil {
-			return nil, errors.BadRequestErr("prodavčev račun nije validan")
+			return nil, errors.BadRequestErr("seller account number is invalid")
 		}
 		offer.SellerAccountNumber = req.AccountNumber
 	}
 	if offer.SellerAccountNumber == nil {
-		return nil, errors.BadRequestErr("nedostaje prodavčev račun — prodavac mora najpre poslati kontraponudu ili prihvatiti")
+		return nil, errors.BadRequestErr("seller account number is missing — the seller must send a counter-offer or accept first")
 	}
 
-	// Re-validuj kapacitet — situacija se mogla promeniti tokom pregovora.
 	if err := s.validateSellerCapacity(ctx, offer.SellerID, offer.StockID, offer.Amount, &offer.OtcOfferID); err != nil {
 		return nil, err
 	}
 
-	// 1) Prebaci premium kupac -> prodavac.
-	// TODO(SAGA): Ovo treba zameniti pravom SAGA orkestracijom kada se uvede.
-	// Trenutno koristimo direct-payment (CreatePaymentWithoutVerification) jer
-	// premium nije settlement, već neposredan prenos po dogovoru.
+	// 1) Transfer premium: buyer → seller.
+	// TODO(SAGA): Replace with proper SAGA orchestration when introduced.
 	if _, err := s.bankingClient.CreatePaymentWithoutVerification(ctx, &pb.CreatePaymentRequest{
 		PayerAccountNumber:     offer.BuyerAccountNumber,
 		RecipientAccountNumber: *offer.SellerAccountNumber,
 		Amount:                 offer.Premium,
-		PaymentCode:            "289", // ostala plaćanja (po potrebi prilagoditi)
-		Purpose:                fmt.Sprintf("OTC premium za ponudu #%d", offer.OtcOfferID),
+		PaymentCode:            "289",
+		Purpose:                fmt.Sprintf("OTC premium for offer #%d", offer.OtcOfferID),
 	}); err != nil {
-		return nil, errors.InternalErr(fmt.Errorf("premium transfer nije uspeo: %w", err))
+		return nil, errors.InternalErr(fmt.Errorf("premium transfer failed: %w", err))
 	}
 
-	// 2) Kreiraj sklopljen opcioni ugovor.
+	// 2) Create the option contract.
 	now := s.now()
 	contract := &model.OtcOptionContract{
 		OtcOfferID:     offer.OtcOfferID,
@@ -260,11 +246,21 @@ func (s *OtcOfferService) AcceptOffer(ctx context.Context, offerID uint, req dto
 		SettlementDate: offer.SettlementDate,
 	}
 	if err := s.optionContractRepo.Create(ctx, contract); err != nil {
-		// Idealno ovde rollback premium transfera; bez SAGA-e to je manuelno.
-		return nil, errors.InternalErr(fmt.Errorf("kreiranje opcionog ugovora nije uspelo (premium već prebačen): %w", err))
+		return nil, errors.InternalErr(fmt.Errorf("option contract creation failed (premium already transferred): %w", err))
 	}
 
-	// 3) Označi ponudu kao prihvaćenu i poveži je sa ugovorom.
+	// 3) Increase the seller's reserved_amount by the contracted quantity.
+	stocks, _ := s.stockRepo.FindByAssetIDs(ctx, []uint{offer.StockID})
+	for i := range stocks {
+		if stocks[i].StockID == offer.StockID || stocks[i].AssetID == offer.StockID {
+			_ = s.assetOwnershipRepo.IncreaseReservedAmount(
+				ctx, offer.SellerID, model.OwnerTypeClient, stocks[i].AssetID, float64(offer.Amount),
+			)
+			break
+		}
+	}
+
+	// 4) Mark offer as accepted and link to the contract.
 	offer.Status = model.OtcOfferStatusAccepted
 	offer.OptionContractID = &contract.OtcOptionContractID
 	offer.LastModified = now
@@ -280,7 +276,7 @@ func (s *OtcOfferService) AcceptOffer(ctx context.Context, offerID uint, req dto
 	return created, nil
 }
 
-// RejectOffer — bilo koja strana može odustati od pregovora u svakom trenutku.
+// RejectOffer allows either party to withdraw from the negotiation at any time.
 func (s *OtcOfferService) RejectOffer(ctx context.Context, offerID uint, req dto.RejectOfferRequest) (*model.OtcOffer, error) {
 	callerID, err := auth.GetSubjectFromContext(ctx)
 	if err != nil {
@@ -292,7 +288,7 @@ func (s *OtcOfferService) RejectOffer(ctx context.Context, offerID uint, req dto
 		return nil, errors.InternalErr(err)
 	}
 	if offer == nil {
-		return nil, errors.NotFoundErr("ponuda nije pronađena")
+		return nil, errors.NotFoundErr("offer not found")
 	}
 
 	if err := s.validateParticipantAndState(offer, callerID); err != nil {
@@ -302,7 +298,7 @@ func (s *OtcOfferService) RejectOffer(ctx context.Context, offerID uint, req dto
 	offer.Status = model.OtcOfferStatusRejected
 	offer.LastModified = s.now()
 	offer.ModifiedBy = callerID
-	_ = req // komentar nije perzistiran u trenutnom modelu — može se dodati ako bude potrebno
+	_ = req
 
 	if err := s.offerRepo.Save(ctx, offer); err != nil {
 		return nil, errors.InternalErr(err)
@@ -315,8 +311,7 @@ func (s *OtcOfferService) RejectOffer(ctx context.Context, offerID uint, req dto
 	return updated, nil
 }
 
-// GetActiveOffersForUser — stranica "Aktivne ponude": svi pregovori u kojima
-// ulogovani korisnik trenutno učestvuje.
+// GetActiveOffersForUser returns all active negotiations in which the given user participates.
 func (s *OtcOfferService) GetActiveOffersForUser(ctx context.Context, userID uint) ([]model.OtcOffer, error) {
 	offers, err := s.offerRepo.FindActiveForUser(ctx, userID)
 	if err != nil {
@@ -325,7 +320,7 @@ func (s *OtcOfferService) GetActiveOffersForUser(ctx context.Context, userID uin
 	return offers, nil
 }
 
-// GetOptionContractsForUser — stranica "Sklopljeni ugovori".
+// GetOptionContractsForUser returns all option contracts in which the given user participates.
 func (s *OtcOfferService) GetOptionContractsForUser(ctx context.Context, userID uint) ([]model.OtcOptionContract, error) {
 	contracts, err := s.optionContractRepo.FindForUser(ctx, userID)
 	if err != nil {
@@ -338,36 +333,29 @@ func (s *OtcOfferService) GetOptionContractsForUser(ctx context.Context, userID 
 
 func (s *OtcOfferService) validateParticipantAndState(offer *model.OtcOffer, callerID uint) error {
 	if callerID != offer.BuyerID && callerID != offer.SellerID {
-		return errors.ForbiddenErr("niste učesnik ovog pregovora")
+		return errors.ForbiddenErr("you are not a participant in this negotiation")
 	}
 	if offer.Status != model.OtcOfferStatusActive {
-		return errors.BadRequestErr("ponuda nije aktivna")
+		return errors.BadRequestErr("offer is not active")
 	}
 	return nil
 }
 
-// validateSellerCapacity proverava spec scenario 3+7+2:
-// PublicAmount prodavca >= sum(amount aktivnih ponuda za isti stock)
+// validateSellerCapacity enforces spec 3+7+2:
+// PublicAmount >= sum(active negotiation amounts) + sum(valid option contract amounts) + requestedAmount
 //
-//   - sum(amount važećih opcionih ugovora za isti stock)
-//   - requestedAmount
-//
-// Ako je excludeOfferID != nil, ta ponuda se izuzima iz sume (npr. kad updateujemo
-// postojeći entitet — njena trenutna količina se ne računa duplo).
+// If excludeOfferID is non-nil, that offer is excluded from the running total
+// (used when updating an existing offer to avoid double-counting its current amount).
 func (s *OtcOfferService) validateSellerCapacity(
 	ctx context.Context,
 	sellerID, stockID uint,
 	requestedAmount int,
 	excludeOfferID *uint,
 ) error {
-	// Stock -> Asset (AssetOwnership se vezuje za AssetID).
 	stocks, err := s.stockRepo.FindByAssetIDs(ctx, []uint{stockID})
 	if err != nil {
 		return errors.InternalErr(err)
 	}
-	// Stock model koristi AssetID kao 1-1 relaciju, ali StockID je primarni ključ.
-	// Pošto ne znamo direktno mapiranje stockID->assetID bez upita, tražimo po
-	// AssetID prvo (česti slučaj kad UI šalje AssetID kao stockID).
 	var stock *model.Stock
 	for i := range stocks {
 		if stocks[i].StockID == stockID || stocks[i].AssetID == stockID {
@@ -376,7 +364,7 @@ func (s *OtcOfferService) validateSellerCapacity(
 		}
 	}
 	if stock == nil {
-		return errors.BadRequestErr("stock nije pronađen")
+		return errors.BadRequestErr("stock not found")
 	}
 
 	ownerships, err := s.assetOwnershipRepo.FindByIdentity(ctx, sellerID, model.OwnerTypeClient)
@@ -392,7 +380,6 @@ func (s *OtcOfferService) validateSellerCapacity(
 		}
 	}
 
-	// Već rezervisano u drugim aktivnim pregovorima.
 	activeOffers, err := s.offerRepo.FindActiveBySellerAndStock(ctx, sellerID, stockID, excludeOfferID)
 	if err != nil {
 		return errors.InternalErr(err)
@@ -402,7 +389,6 @@ func (s *OtcOfferService) validateSellerCapacity(
 		reserved += o.Amount
 	}
 
-	// Već rezervisano u važećim opcionim ugovorima (neiskorišćeni, settlement u budućnosti).
 	activeContracts, err := s.optionContractRepo.FindActiveBySellerAndStock(ctx, sellerID, stockID, s.now())
 	if err != nil {
 		return errors.InternalErr(err)
@@ -414,7 +400,7 @@ func (s *OtcOfferService) validateSellerCapacity(
 	totalNeeded := float64(reserved + requestedAmount)
 	if publicAmount < totalNeeded {
 		return errors.BadRequestErr(fmt.Sprintf(
-			"prodavac nema dovoljno javnih akcija: javno=%.0f, već zauzeto u pregovorima/ugovorima=%d, traženo dodatno=%d",
+			"seller does not have enough public shares: public=%.0f, already committed=%d, additionally requested=%d",
 			publicAmount, reserved, requestedAmount,
 		))
 	}
