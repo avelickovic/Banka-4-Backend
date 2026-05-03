@@ -20,10 +20,11 @@ import (
 
 type InvestmentFundService struct {
 	fundRepo       repository.InvestmentFundRepository
+	listingRepo    repository.ListingRepository
 	positionRepo   repository.ClientFundPositionRepository
 	investmentRepo repository.ClientFundInvestmentRepository
 	ownershipRepo  repository.AssetOwnershipRepository
-	listingRepo    repository.ListingRepository
+	exchangeRepo   repository.ExchangeRepository
 	stockRepo      repository.StockRepository
 	optionRepo     repository.OptionRepository
 	futuresRepo    repository.FuturesContractRepository
@@ -36,9 +37,10 @@ type InvestmentFundService struct {
 func NewInvestmentFundService(
 	fundRepo repository.InvestmentFundRepository,
 	positionRepo repository.ClientFundPositionRepository,
+	listingRepo repository.ListingRepository,
 	investmentRepo repository.ClientFundInvestmentRepository,
 	ownershipRepo repository.AssetOwnershipRepository,
-	listingRepo repository.ListingRepository,
+	exchangeRepo repository.ExchangeRepository,
 	stockRepo repository.StockRepository,
 	optionRepo repository.OptionRepository,
 	futuresRepo repository.FuturesContractRepository,
@@ -49,9 +51,10 @@ func NewInvestmentFundService(
 	return &InvestmentFundService{
 		fundRepo:       fundRepo,
 		positionRepo:   positionRepo,
+		listingRepo:    listingRepo,
 		investmentRepo: investmentRepo,
 		ownershipRepo:  ownershipRepo,
-		listingRepo:    listingRepo,
+		exchangeRepo:   exchangeRepo,
 		stockRepo:      stockRepo,
 		optionRepo:     optionRepo,
 		futuresRepo:    futuresRepo,
@@ -431,97 +434,15 @@ func resolveCallerIdentity(authCtx *auth.AuthContext) (uint, model.OwnerType, er
 		return 0, "", commonErrors.UnauthorizedErr("unknown identity type")
 	}
 }
-func (s *InvestmentFundService) GetFundSharesValueRSD(ctx context.Context, fundID uint) (float64, error) {
-	ownerships, err := s.ownershipRepo.FindByUserId(ctx, fundID, model.OwnerTypeFund)
+func (s *InvestmentFundService) getFundSharesValueRSD(ctx context.Context, fundID uint) (float64, error) {
+	securitiesValue, err := s.sumSecuritiesValue(ctx, fundID)
 	if err != nil {
 		return 0, commonErrors.InternalErr(err)
 	}
-
-	var active []model.AssetOwnership
-	var assetIDs []uint
-	for _, o := range ownerships {
-		if o.Amount > 0 {
-			active = append(active, o)
-			assetIDs = append(assetIDs, o.AssetID)
-		}
-	}
-
-	if len(active) == 0 {
-		return 0, nil
-	}
-
-	type assetMeta struct {
-		assetType dto.AssetType
-		listing   *model.Listing
-	}
-	meta := make(map[uint]assetMeta)
-
-	stocks, err := s.stockRepo.FindByAssetIDs(ctx, assetIDs)
-	if err != nil {
-		return 0, commonErrors.InternalErr(err)
-	}
-	for _, st := range stocks {
-		meta[st.AssetID] = assetMeta{
-			assetType: dto.AssetTypeStock,
-			listing:   st.Listing,
-		}
-	}
-
-	options, err := s.optionRepo.FindByAssetIDs(ctx, assetIDs)
-	if err != nil {
-		return 0, commonErrors.InternalErr(err)
-	}
-	for _, op := range options {
-		meta[op.AssetID] = assetMeta{assetType: dto.AssetTypeOption, listing: op.Listing}
-	}
-
-	futures, err := s.futuresRepo.FindByAssetIDs(ctx, assetIDs)
-	if err != nil {
-		return 0, commonErrors.InternalErr(err)
-	}
-	for _, fc := range futures {
-		meta[fc.AssetID] = assetMeta{assetType: dto.AssetTypeFutures, listing: fc.Listing}
-	}
-
-	forexPairs, err := s.forexRepo.FindByAssetIDs(ctx, assetIDs)
-	if err != nil {
-		return 0, commonErrors.InternalErr(err)
-	}
-	for _, fp := range forexPairs {
-		meta[fp.AssetID] = assetMeta{assetType: dto.AssetTypeForex, listing: fp.Listing}
-	}
-
-	result := 0.0
-
-	for _, o := range active {
-		m, known := meta[o.AssetID]
-		if !known {
-			continue
-		}
-
-		currentPrice := 0.0
-		if m.listing != nil {
-			currentPrice = m.listing.Price
-		}
-
-		if m.listing == nil || m.listing.Exchange == nil || m.listing.Exchange.Currency == "" {
-			return 0, commonErrors.InternalErr(fmt.Errorf("user listing does not have valid exchange/currency code"))
-		}
-
-		currency := m.listing.Exchange.Currency
-
-		currentPriceRSD, err := s.bankingClient.ConvertCurrency(ctx, currentPrice, currency, "RSD")
-		if err != nil {
-			return 0, commonErrors.InternalErr(err)
-		}
-
-		result += o.Amount * currentPriceRSD
-	}
-
-	return result, nil
+	return securitiesValue, nil
 }
 
-func (s *InvestmentFundService) GetFundTotalInvestedRSD(ctx context.Context, fundID uint) (float64, error) {
+func (s *InvestmentFundService) getFundTotalInvestedRSD(ctx context.Context, fundID uint) (float64, error) {
 	positions, err := s.positionRepo.FindByFund(ctx, fundID)
 	if err != nil {
 		return 0, commonErrors.InternalErr(err)
@@ -544,11 +465,26 @@ func (s *InvestmentFundService) GetClientFundPositions(ctx context.Context, clie
 	for i, pos := range positions {
 		result[i] = dto.ToFundPositionSummaryResponse(pos)
 
-		fundSharesValue, err := s.GetFundSharesValueRSD(ctx, pos.FundID)
+		fund, err := s.fundRepo.FindByID(ctx, pos.FundID)
+		if err != nil || fund == nil {
+			return nil, commonErrors.InternalErr(err)
+		}
+
+		liquidAssets, err := s.getLiquidAssets(ctx, fund.AccountNumber)
+		if err != nil {
+			return nil, commonErrors.InternalErr(err)
+		}
+
+		sharesValue, err := s.getFundSharesValueRSD(ctx, pos.FundID)
+		if err != nil {
+			return nil, commonErrors.InternalErr(err)
+		}
+
+		fundTotalValue := sharesValue + liquidAssets
 		if err != nil {
 			return nil, err
 		}
-		fundTotalInvested, err := s.GetFundTotalInvestedRSD(ctx, pos.FundID)
+		fundTotalInvested, err := s.getFundTotalInvestedRSD(ctx, pos.FundID)
 		if err != nil {
 			return nil, err
 		}
@@ -558,9 +494,133 @@ func (s *InvestmentFundService) GetClientFundPositions(ctx context.Context, clie
 		} else {
 			result[i].ClientsSharePercent = pos.TotalInvestedAmount / fundTotalInvested
 		}
-		result[i].ClientsShareValueRSD = result[i].ClientsSharePercent * fundSharesValue
+		result[i].ClientsShareValueRSD = result[i].ClientsSharePercent * fundTotalValue
 		result[i].TotalProfit = result[i].ClientsShareValueRSD - pos.TotalInvestedAmount
 	}
 
 	return result, nil
+}
+
+func (s *InvestmentFundService) GetFundDetail(ctx context.Context, fundID uint) (*dto.FundDetailResponse, error) {
+	// 1. Fund base info
+	fund, err := s.fundRepo.FindByID(ctx, fundID)
+	if err != nil {
+		return nil, commonErrors.InternalErr(err)
+	}
+	if fund == nil {
+		return nil, commonErrors.NotFoundErr("investment fund not found")
+	}
+
+	securitiesValue, err := s.sumSecuritiesValue(ctx, fund.FundID)
+	if err != nil {
+		return nil, commonErrors.InternalErr(err)
+	}
+	liquidAssets, err := s.getLiquidAssets(ctx, fund.AccountNumber)
+	if err != nil {
+		return nil, commonErrors.InternalErr(err)
+	}
+
+	fundValue := liquidAssets + securitiesValue
+
+	holdings, err := s.fundRepo.FindHoldings(ctx, fundID)
+	if err != nil {
+		return nil, commonErrors.InternalErr(err)
+	}
+
+	holdingsResp := make([]dto.SecurityHoldingResponse, 0, len(holdings))
+
+	// Batch fetch listings by asset IDs
+	assetIDs := make([]uint, len(holdings))
+	for i, h := range holdings {
+		assetIDs[i] = h.AssetID
+	}
+	listings, err := s.listingRepo.FindByAssetIDs(ctx, assetIDs)
+	if err != nil {
+		return nil, commonErrors.InternalErr(err)
+	}
+	listingMap := make(map[uint]*model.Listing)
+	for i := range listings {
+		listingMap[listings[i].AssetID] = &listings[i]
+	}
+
+	var totalInvested float64
+	for _, pos := range fund.Positions {
+		totalInvested += pos.TotalInvestedAmount
+	}
+
+	for _, h := range holdings {
+		listing, ok := listingMap[h.AssetID]
+		if !ok {
+			continue
+		}
+		dailyInfo, _ := s.listingRepo.FindLastDailyPriceInfo(ctx, listing.ListingID, time.Now())
+		currentPrice := listing.Price
+
+		exchangeMic := listing.Exchange.MicCode
+		exchange, err := s.exchangeRepo.FindByMicCode(ctx, exchangeMic)
+		if err != nil {
+			return nil, err
+		}
+		listingCurrency := exchange.Currency
+
+		marketValue := h.Amount * currentPrice
+		fundValue += marketValue
+
+		change := 0.0
+		volume := uint64(0)
+		if dailyInfo != nil {
+			change = dailyInfo.Change
+			volume = uint64(dailyInfo.Volume)
+		}
+
+		holdingsResp = append(holdingsResp, dto.SecurityHoldingResponse{
+			Ticker:            h.Asset.Ticker,
+			Price:             currentPrice,
+			Amount:            h.Amount,
+			Currency:          listingCurrency,
+			Change:            change,
+			Volume:            volume,
+			InitialMarginCost: listing.MaintenanceMargin,
+			AcquisitionDate:   h.UpdatedAt,
+		})
+	}
+
+	profit := fundValue - totalInvested
+
+	// 6. Performance history (last 12 entries)
+	perfHistory, err := s.fundRepo.GetPerformanceHistory(ctx, fundID, 12)
+	if err != nil {
+		perfHistory = []model.FundPerformance{}
+	}
+	perfResp := make([]dto.FundPerformanceEntry, len(perfHistory))
+	for i, p := range perfHistory {
+		perfResp[i] = dto.FundPerformanceEntry{
+			Date:         p.Date,
+			Value:        p.FundValue,
+			Profit:       p.Profit,
+			LiquidAssets: p.LiquidAssets,
+		}
+	}
+
+	managerName := fmt.Sprintf("Manager %d", fund.ManagerID)
+	if s.userClient != nil {
+
+		resp, err := s.userClient.GetEmployeeById(ctx, uint64(fund.ManagerID))
+		if err == nil && resp != nil {
+			managerName = resp.GetFullName()
+		}
+	}
+
+	return &dto.FundDetailResponse{
+		ID:                 fund.FundID,
+		Name:               fund.Name,
+		Description:        fund.Description,
+		Manager:            managerName,
+		FundValue:          fundValue,
+		MinInvestment:      fund.MinimumContribution,
+		Profit:             profit,
+		LiquidAssets:       liquidAssets,
+		Holdings:           holdingsResp,
+		PerformanceHistory: perfResp,
+	}, nil
 }
