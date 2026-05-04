@@ -987,10 +987,12 @@ func TestCreateOrder_RepoCreateError(t *testing.T) {
 // ── ApproveOrder Tests ────────────────────────────────────────────
 
 func TestApproveOrder_Success(t *testing.T) {
+	ppu := 5.0
 	pendingOrder := &model.Order{
-		OrderID: 1,
-		Status:  model.OrderStatusPending,
-		Listing: model.Listing{ExchangeMIC: "XTST"},
+		OrderID:      1,
+		Status:       model.OrderStatusPending,
+		Listing:      model.Listing{ExchangeMIC: "XTST"},
+		PricePerUnit: &ppu,
 	}
 
 	svc := newTestOrderService(
@@ -1718,7 +1720,144 @@ func TestProcessOrder_MarketOrder_FullFill(t *testing.T) {
 
 // ── processDueOrders Tests ───────────────────────────────────────
 
-func TestProcessOrder_ActuaryBuy_IncrementsUsedLimit(t *testing.T) {
+func TestApproveOrder_ActuaryBuy_IncrementsUsedLimit(t *testing.T) {
+	listing := defaultListing()
+	exchange := defaultExchange()
+	price := 151.0
+	pendingOrder := &model.Order{
+		OrderID:          1,
+		UserID:           42,
+		ListingID:        1,
+		Listing:          *listing,
+		OrderType:        model.OrderTypeMarket,
+		Direction:        model.OrderDirectionBuy,
+		Quantity:         2,
+		FilledQty:        0,
+		ContractSize:     1,
+		Triggered:        true,
+		AllOrNone:        true,
+		Status:           model.OrderStatusPending,
+		AccountNumber:    "444000100000000110",
+		CommissionExempt: true,
+		OwnerType:        model.OwnerTypeActuary,
+		PricePerUnit:     &price,
+	}
+	userClient := &fakeUserServiceClient{
+		employeeResp: &pb.GetEmployeeByIdResponse{Id: 42, IsAgent: true},
+		identityResp: &pb.GetIdentityByUserIdResponse{IdentityId: 5},
+	}
+	svc := newTestOrderService(
+		&fakeOrderRepo{orderByID: pendingOrder},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		userClient,
+		&fakeOrderBankingClient{},
+		&fakeTaxRecorder{},
+	)
+
+	ctx := employeeAuthCtx(42)
+
+	_, err := svc.ApproveOrder(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, uint64(42), userClient.incrementUsedLimitEmployeeID)
+	// 2 qty * 151.0 price = 302.0
+	require.InDelta(t, 302.0, userClient.incrementUsedLimitAmount, 0.01)
+}
+
+func TestApproveOrder_SupervisorBuy_DoesNotIncrementUsedLimit(t *testing.T) {
+	listing := defaultListing()
+	exchange := defaultExchange()
+	price := 151.0
+	pendingOrder := &model.Order{
+		OrderID:          1,
+		UserID:           42,
+		ListingID:        1,
+		Listing:          *listing,
+		OrderType:        model.OrderTypeMarket,
+		Direction:        model.OrderDirectionBuy,
+		Quantity:         1,
+		FilledQty:        0,
+		ContractSize:     1,
+		Triggered:        true,
+		AllOrNone:        true,
+		Status:           model.OrderStatusPending,
+		AccountNumber:    "444000100000000110",
+		CommissionExempt: true,
+		OwnerType:        model.OwnerTypeActuary,
+		PricePerUnit:     &price,
+	}
+	userClient := &fakeUserServiceClient{
+		employeeResp: &pb.GetEmployeeByIdResponse{Id: 42, IsAgent: false, IsSupervisor: true},
+		identityResp: &pb.GetIdentityByUserIdResponse{IdentityId: 5},
+	}
+	svc := newTestOrderService(
+		&fakeOrderRepo{orderByID: pendingOrder},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		userClient,
+		&fakeOrderBankingClient{},
+		&fakeTaxRecorder{},
+	)
+
+	ctx := employeeAuthCtx(42)
+
+	_, err := svc.ApproveOrder(ctx, 1)
+	require.NoError(t, err)
+	require.False(t, userClient.incrementUsedLimitCalled)
+}
+
+func TestApproveOrder_ActuarySell_DoesNotIncrementUsedLimit(t *testing.T) {
+	listing := defaultListing()
+	exchange := defaultExchange()
+	price := 151.0
+	pendingOrder := &model.Order{
+		OrderID:          1,
+		UserID:           42,
+		ListingID:        1,
+		Listing:          *listing,
+		OrderType:        model.OrderTypeMarket,
+		Direction:        model.OrderDirectionSell,
+		Quantity:         1,
+		FilledQty:        0,
+		ContractSize:     1,
+		Triggered:        true,
+		AllOrNone:        true,
+		Status:           model.OrderStatusPending,
+		AccountNumber:    "444000100000000110",
+		CommissionExempt: true,
+		OwnerType:        model.OwnerTypeActuary,
+		PricePerUnit:     &price,
+	}
+	userClient := &fakeUserServiceClient{
+		identityResp: &pb.GetIdentityByUserIdResponse{IdentityId: 5},
+	}
+	svc := newTestOrderService(
+		&fakeOrderRepo{orderByID: pendingOrder},
+		&fakeOrderTransactionRepo{},
+		&fakeExchangeRepo{exchange: exchange},
+		&fakeListingRepo{listing: listing},
+		userClient,
+		&fakeOrderBankingClient{},
+		&fakeTaxRecorder{},
+	)
+	svc.assetOwnershipRepo = &fakeAssetOwnershipRepo{
+		ownerships: []model.AssetOwnership{
+			{AssetID: listing.AssetID, IdentityID: 5, OwnerType: model.OwnerTypeActuary, Amount: 1, AvgBuyPriceRSD: 200},
+		},
+	}
+
+	ctx := employeeAuthCtx(42)
+
+	_, err := svc.ApproveOrder(ctx, 1)
+	require.NoError(t, err)
+	require.False(t, userClient.incrementUsedLimitCalled)
+}
+
+// processOrder tests — confirm it no longer touches the used limit at all
+
+func TestProcessOrder_ActuaryBuy_DoesNotIncrementUsedLimit(t *testing.T) {
 	listing := defaultListing()
 	exchange := defaultExchange()
 	userClient := &fakeUserServiceClient{
@@ -1762,9 +1901,7 @@ func TestProcessOrder_ActuaryBuy_IncrementsUsedLimit(t *testing.T) {
 
 	err := svc.processOrder(context.Background(), order)
 	require.NoError(t, err)
-	require.True(t, userClient.incrementUsedLimitCalled)
-	require.Equal(t, uint64(42), userClient.incrementUsedLimitEmployeeID)
-	require.InDelta(t, 302.0, userClient.incrementUsedLimitAmount, 0.01)
+	require.False(t, userClient.incrementUsedLimitCalled)
 }
 
 func TestProcessOrder_SupervisorBuy_DoesNotIncrementUsedLimit(t *testing.T) {

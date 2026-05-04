@@ -222,7 +222,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, req dto.CreateOrderReque
 	if order.Status == model.OrderStatusApproved {
 		nextExecutionAt := s.initialExecutionTime(session, order.AfterHours)
 		order.NextExecutionAt = &nextExecutionAt
+
+		if order.PricePerUnit == nil {
+			return nil, errors.BadRequestErr("trying to create an order without a set price per unit")
+		}
+
+		grossAmount := *order.PricePerUnit * float64(order.Quantity)
+		if err := s.updateActuaryUsedLimit(ctx, &order, grossAmount, exchange.Currency); err != nil {
+			return nil, errors.InternalErr(err)
+		}
 	}
+
 	if err := s.orderRepo.Create(ctx, &order); err != nil {
 		return nil, errors.InternalErr(err)
 	}
@@ -299,6 +309,15 @@ func (s *OrderService) ApproveOrder(ctx context.Context, orderID uint) (*model.O
 	order.ApprovedBy = &approverID
 	order.NextExecutionAt = &nextExecutionAt
 	order.UpdatedAt = s.now()
+	
+	if order.PricePerUnit == nil {
+		return nil, errors.BadRequestErr("trying to approve an order without a set price per unit")
+	}
+
+	grossAmount := *order.PricePerUnit * float64(order.Quantity)
+	if err := s.updateActuaryUsedLimit(ctx, order, grossAmount, exchange.Currency); err != nil {
+		return nil, errors.InternalErr(err)
+	}
 
 	if err := s.orderRepo.Save(ctx, order); err != nil {
 		return nil, errors.InternalErr(err)
@@ -518,10 +537,6 @@ func (s *OrderService) processOrder(ctx context.Context, order *model.Order) err
 	}
 
 	if err := s.updateAssetOwnership(ctx, order, fillQty, pricePerUnit, tradeCurrency); err != nil {
-		return err
-	}
-
-	if err := s.updateActuaryUsedLimit(ctx, order, grossAmount, tradeCurrency); err != nil {
 		return err
 	}
 
