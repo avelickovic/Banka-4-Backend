@@ -1752,7 +1752,7 @@ func TestApproveOrder_ActuaryBuy_IncrementsUsedLimit(t *testing.T) {
 	price := 151.0
 	pendingOrder := &model.Order{
 		OrderID:          1,
-		UserID:           42,
+		OrderOwnerUserID: 42,
 		ListingID:        1,
 		Listing:          *listing,
 		OrderType:        model.OrderTypeMarket,
@@ -1797,7 +1797,7 @@ func TestApproveOrder_SupervisorBuy_DoesNotIncrementUsedLimit(t *testing.T) {
 	price := 151.0
 	pendingOrder := &model.Order{
 		OrderID:          1,
-		UserID:           42,
+		OrderOwnerUserID: 42,
 		ListingID:        1,
 		Listing:          *listing,
 		OrderType:        model.OrderTypeMarket,
@@ -1840,7 +1840,7 @@ func TestApproveOrder_ActuarySell_DoesNotIncrementUsedLimit(t *testing.T) {
 	price := 151.0
 	pendingOrder := &model.Order{
 		OrderID:          1,
-		UserID:           42,
+		OrderOwnerUserID: 42,
 		ListingID:        1,
 		Listing:          *listing,
 		OrderType:        model.OrderTypeMarket,
@@ -1870,7 +1870,7 @@ func TestApproveOrder_ActuarySell_DoesNotIncrementUsedLimit(t *testing.T) {
 	)
 	svc.assetOwnershipRepo = &fakeAssetOwnershipRepo{
 		ownerships: []model.AssetOwnership{
-			{AssetID: listing.AssetID, IdentityID: 5, OwnerType: model.OwnerTypeActuary, Amount: 1, AvgBuyPriceRSD: 200},
+			{AssetID: listing.AssetID, UserId: 5, OwnerType: model.OwnerTypeActuary, Amount: 1, AvgBuyPriceRSD: 200},
 		},
 	}
 
@@ -1910,7 +1910,7 @@ func TestProcessOrder_ActuaryBuy_DoesNotIncrementUsedLimit(t *testing.T) {
 
 	order := &model.Order{
 		OrderID:          1,
-		UserID:           42,
+		OrderOwnerUserID: 42,
 		ListingID:        1,
 		OrderType:        model.OrderTypeMarket,
 		Direction:        model.OrderDirectionBuy,
@@ -1957,7 +1957,7 @@ func TestProcessOrder_SupervisorBuy_DoesNotIncrementUsedLimit(t *testing.T) {
 
 	order := &model.Order{
 		OrderID:          1,
-		UserID:           42,
+		OrderOwnerUserID: 42,
 		ListingID:        1,
 		OrderType:        model.OrderTypeMarket,
 		Direction:        model.OrderDirectionBuy,
@@ -2000,13 +2000,13 @@ func TestProcessOrder_ActuarySell_DoesNotIncrementUsedLimit(t *testing.T) {
 	)
 	svc.assetOwnershipRepo = &fakeAssetOwnershipRepo{
 		ownerships: []model.AssetOwnership{
-			{AssetID: listing.AssetID, IdentityID: 5, OwnerType: model.OwnerTypeActuary, Amount: 1, AvgBuyPriceRSD: 200},
+			{AssetID: listing.AssetID, UserId: 5, OwnerType: model.OwnerTypeActuary, Amount: 1, AvgBuyPriceRSD: 200},
 		},
 	}
 
 	order := &model.Order{
 		OrderID:          1,
-		UserID:           42,
+		OrderOwnerUserID: 42,
 		ListingID:        1,
 		OrderType:        model.OrderTypeMarket,
 		Direction:        model.OrderDirectionSell,

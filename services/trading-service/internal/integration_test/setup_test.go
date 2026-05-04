@@ -486,17 +486,17 @@ func seedOrder(t *testing.T, db *gorm.DB, userID, listingID uint, direction mode
 
 	ppu := 5.0
 	order := &model.Order{
-		UserID:        userID,
-		AccountNumber: "444000100000000001",
-		ListingID:     listingID,
-		OrderType:     model.OrderTypeMarket,
-		Direction:     direction,
-		Quantity:      10,
-		ContractSize:  1,
-		PricePerUnit:  &ppu,
-		Status:        status,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		OrderOwnerUserID: userID,
+		AccountNumber:    "444000100000000001",
+		ListingID:        listingID,
+		OrderType:        model.OrderTypeMarket,
+		Direction:        direction,
+		Quantity:         10,
+		ContractSize:     1,
+		PricePerUnit:     &ppu,
+		Status:           status,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 
 	if err := db.Create(order).Error; err != nil {

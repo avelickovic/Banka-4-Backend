@@ -441,7 +441,7 @@ func (s *OrderService) ApproveOrder(ctx context.Context, orderID uint) (*model.O
 	order.ApprovedBy = &approverID //TODO careful
 	order.NextExecutionAt = &nextExecutionAt
 	order.UpdatedAt = s.now()
-	
+
 	if order.PricePerUnit == nil {
 		return nil, errors.BadRequestErr("trying to approve an order without a set price per unit")
 	}
@@ -681,7 +681,7 @@ func (s *OrderService) updateActuaryUsedLimit(ctx context.Context, order *model.
 		return nil
 	}
 
-	employee, err := s.userClient.GetEmployeeById(ctx, uint64(order.UserID))
+	employee, err := s.userClient.GetEmployeeById(ctx, uint64(order.OrderOwnerUserID))
 	if err != nil {
 		return err
 	}
@@ -697,20 +697,12 @@ func (s *OrderService) updateActuaryUsedLimit(ctx context.Context, order *model.
 		}
 	}
 
-	_, err = s.userClient.IncrementUsedLimit(ctx, uint64(order.UserID), amountRSD)
+	_, err = s.userClient.IncrementUsedLimit(ctx, uint64(order.OrderOwnerUserID), amountRSD)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (s *OrderService) updateAssetOwnership(ctx context.Context, order *model.Order, fillQty uint, pricePerUnit float64, currency string) error {
-	if order.Listing.Asset == nil {
-		return nil
-  }
-  
-	return order.OrderOwnerUserID, order.OrderOwnerType
 }
 
 func assetOwner(order *model.Order) (uint, model.OwnerType) {
@@ -1278,12 +1270,6 @@ func (s *OrderService) getOwnershipForOrder(ctx context.Context, order *model.Or
 	if order.Listing.Asset == nil {
 		return nil, nil
 	}
-
-	resp, err := s.userClient.GetIdentityByUserId(ctx, uint64(order.UserID), string(order.OwnerType))
-	if err != nil {
-		return nil, errors.InternalErr(err)
-	}
-	identityID := uint(resp.IdentityId)
 
 	ownerID, ownerType := assetOwner(order)
 	existing, err := s.assetOwnershipRepo.FindByUserId(ctx, ownerID, ownerType)
