@@ -206,11 +206,49 @@ func (h *OtcOfferHandler) GetMyOptionContracts(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// ExerciseContract starts or resumes settlement of an active OTC option contract.
+//
+// @Summary     Exercise OTC contract
+// @Description The buyer who holds the OTC option contract starts or resumes the same-bank settlement saga.
+// @Tags        otc
+// @Produce     json
+// @Param       id path int true "OTC contract ID"
+// @Success     200 {object} dto.OtcExecutionSagaResponse
+// @Failure     400 {object} errors.AppError
+// @Failure     401 {object} errors.AppError
+// @Failure     403 {object} errors.AppError
+// @Failure     404 {object} errors.AppError
+// @Failure     409 {object} errors.AppError
+// @Router      /api/otc/contracts/{id}/exercise [post]
+func (h *OtcOfferHandler) ExerciseContract(c *gin.Context) {
+	id, err := parseContractID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	execution, err := h.service.ExerciseContract(c.Request.Context(), id)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToOtcExecutionSagaResponse(*execution))
+}
+
 // parseOfferID extracts and validates the :id path parameter as a uint.
 func parseOfferID(c *gin.Context) (uint, error) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		return 0, errors.BadRequestErr("invalid offer id")
+	}
+	return uint(id), nil
+}
+
+func parseContractID(c *gin.Context) (uint, error) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		return 0, errors.BadRequestErr("invalid contract id")
 	}
 	return uint(id), nil
 }

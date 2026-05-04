@@ -531,6 +531,39 @@ func TestOtcRejectOffer_InactiveOffer_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "not active")
 }
 
+func TestOtcExerciseContract_Success(t *testing.T) {
+	svc, _, _, _, _ := newOtcTestService(t)
+	offer := otcCreateOffer(t, svc, 10)
+
+	sellerAcc := "seller-acc"
+	contract, err := svc.AcceptOffer(ctxForOtcUser(otcSellerID), offer.OtcOfferID, dto.AcceptOfferRequest{
+		AccountNumber: &sellerAcc,
+	})
+	require.NoError(t, err)
+
+	execution, err := svc.ExerciseContract(ctxForOtcUser(otcBuyerID), contract.OtcOptionContractID)
+	require.NoError(t, err)
+	require.NotNil(t, execution)
+	assert.Equal(t, model.OtcExecutionStatusCompleted, execution.Status)
+	assert.Equal(t, model.OtcExecutionStepCompleted, execution.CurrentStep)
+}
+
+func TestOtcExerciseContract_OnlyBuyerMayExercise(t *testing.T) {
+	svc, _, _, _, _ := newOtcTestService(t)
+	offer := otcCreateOffer(t, svc, 10)
+
+	sellerAcc := "seller-acc"
+	contract, err := svc.AcceptOffer(ctxForOtcUser(otcSellerID), offer.OtcOfferID, dto.AcceptOfferRequest{
+		AccountNumber: &sellerAcc,
+	})
+	require.NoError(t, err)
+
+	execution, err := svc.ExerciseContract(ctxForOtcUser(otcSellerID), contract.OtcOptionContractID)
+	require.Nil(t, execution)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only the buyer")
+}
+
 func TestOtcGetActiveOffersForUser_ReturnsOnlyActiveOffers(t *testing.T) {
 	svc, _, _, _, _ := newOtcTestService(t)
 	otcCreateOffer(t, svc, 10)

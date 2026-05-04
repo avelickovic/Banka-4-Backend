@@ -402,6 +402,30 @@ func (s *OtcOfferService) GetOptionContractsForUser(
 	return resp, nil
 }
 
+// ExerciseContract allows the buyer who holds the OTC option contract to start
+// or resume its settlement saga.
+func (s *OtcOfferService) ExerciseContract(ctx context.Context, contractID uint) (*model.OtcExecutionSaga, error) {
+	callerID, err := auth.GetSubjectFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	contract, err := s.optionContractRepo.FindByID(ctx, contractID)
+	if err != nil {
+		return nil, errors.InternalErr(err)
+	}
+
+	if contract == nil {
+		return nil, errors.NotFoundErr("OTC contract not found")
+	}
+
+	if callerID != contract.BuyerID {
+		return nil, errors.ForbiddenErr("only the buyer may exercise this OTC contract")
+	}
+
+	return s.processingService.ExerciseContract(ctx, contractID)
+}
+
 // --- helpers ---
 
 func (s *OtcOfferService) validateParticipantAndState(offer *model.OtcOffer, callerID uint) error {

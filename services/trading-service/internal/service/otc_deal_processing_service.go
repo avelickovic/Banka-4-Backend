@@ -347,6 +347,7 @@ func (s *OtcDealProcessingService) runMaintenance(ctx context.Context) {
 // If the contract was already exercised, it returns a conflict error.
 func (s *OtcDealProcessingService) ensureExecutionSaga(ctx context.Context, contractID uint) (*model.OtcExecutionSaga, error) {
 	var execution *model.OtcExecutionSaga
+	expired := false
 	err := s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		contract, err := s.optionContractRepo.FindByIDForUpdate(ctx, contractID)
 		if err != nil {
@@ -355,6 +356,14 @@ func (s *OtcDealProcessingService) ensureExecutionSaga(ctx context.Context, cont
 
 		if contract == nil {
 			return appErrors.NotFoundErr("OTC contract not found")
+		}
+
+		if s.shouldExpireContract(contract) {
+			if err := s.expireLockedContract(ctx, contract); err != nil {
+				return err
+			}
+			expired = true
+			return nil
 		}
 
 		if err := s.validateContractForExecution(ctx, contract); err != nil {
@@ -409,6 +418,10 @@ func (s *OtcDealProcessingService) ensureExecutionSaga(ctx context.Context, cont
 
 	if err != nil {
 		return nil, err
+	}
+
+	if expired {
+		return nil, appErrors.BadRequestErr("OTC contract has expired")
 	}
 
 	return execution, nil
@@ -501,6 +514,7 @@ func (s *OtcDealProcessingService) reserveFunds(ctx context.Context, execution *
 // the reserved shares, the previously reserved funds are released and the
 // execution fails; retryable errors are deferred for another attempt.
 func (s *OtcDealProcessingService) confirmShares(ctx context.Context, execution *model.OtcExecutionSaga) error {
+	expired := false
 	err := s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		contract, err := s.optionContractRepo.FindByIDForUpdate(ctx, execution.ContractID)
 		if err != nil {
@@ -509,6 +523,14 @@ func (s *OtcDealProcessingService) confirmShares(ctx context.Context, execution 
 
 		if contract == nil {
 			return appErrors.NotFoundErr("OTC contract not found")
+		}
+
+		if s.shouldExpireContract(contract) {
+			if err := s.expireLockedContract(ctx, contract); err != nil {
+				return err
+			}
+			expired = true
+			return nil
 		}
 
 		if err := s.validateContractForExecution(ctx, contract); err != nil {
@@ -537,6 +559,9 @@ func (s *OtcDealProcessingService) confirmShares(ctx context.Context, execution 
 	})
 
 	if err == nil {
+		if expired {
+			return s.releaseAndFail(ctx, execution, "OTC contract has expired")
+		}
 		return nil
 	}
 
@@ -570,6 +595,7 @@ func (s *OtcDealProcessingService) commitFunds(ctx context.Context, execution *m
 // OWNERSHIP_TRANSFERRED. If any local update fails, the execution is switched
 // into compensation mode so the committed funds can be refunded.
 func (s *OtcDealProcessingService) transferOwnership(ctx context.Context, execution *model.OtcExecutionSaga) error {
+	expired := false
 	err := s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		contract, err := s.optionContractRepo.FindByIDForUpdate(ctx, execution.ContractID)
 		if err != nil {
@@ -578,6 +604,14 @@ func (s *OtcDealProcessingService) transferOwnership(ctx context.Context, execut
 
 		if contract == nil {
 			return appErrors.NotFoundErr("OTC contract not found")
+		}
+
+		if s.shouldExpireContract(contract) {
+			if err := s.expireLockedContract(ctx, contract); err != nil {
+				return err
+			}
+			expired = true
+			return nil
 		}
 
 		if err := s.validateContractForExecution(ctx, contract); err != nil {
@@ -675,6 +709,10 @@ func (s *OtcDealProcessingService) transferOwnership(ctx context.Context, execut
 		execution.UpdatedAt = now
 		return s.executionRepo.Save(ctx, execution)
 	})
+
+	if expired {
+		return s.scheduleCompensating(ctx, execution.OtcExecutionSagaID, model.OtcExecutionStepFundsCommitted, "OTC contract has expired")
+	}
 
 	if err != nil {
 		return s.scheduleCompensating(ctx, execution.OtcExecutionSagaID, model.OtcExecutionStepFundsCommitted, err.Error())
@@ -775,12 +813,6 @@ func (s *OtcDealProcessingService) validateContractForExecution(ctx context.Cont
 	}
 
 	if contract.Status == model.OtcOptionContractStatusExpired || !contract.SettlementDate.After(s.now()) {
-		if contract.Status == model.OtcOptionContractStatusActive && !contract.SettlementDate.After(s.now()) {
-			if err := s.expireLockedContract(ctx, contract); err != nil {
-				return err
-			}
-		}
-
 		return appErrors.BadRequestErr("OTC contract has expired")
 	}
 
@@ -789,6 +821,10 @@ func (s *OtcDealProcessingService) validateContractForExecution(ctx context.Cont
 	}
 
 	return nil
+}
+
+func (s *OtcDealProcessingService) shouldExpireContract(contract *model.OtcOptionContract) bool {
+	return contract.Status == model.OtcOptionContractStatusActive && !contract.SettlementDate.After(s.now())
 }
 
 // validateSellerCapacityForActivation checks that the seller still has enough

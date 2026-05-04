@@ -178,6 +178,9 @@ func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, taxHandler
 			// Stranica: Sklopljeni ugovori — opcioni ugovori (CALL) sklopljeni iz prihvaćenih ponuda.
 			otc.GET("/contracts", otcOfferHandler.GetMyOptionContracts)
 
+			// Exercise postojećeg OTC contract-a — buyer pokreće settlement SAGA.
+			otc.POST("/contracts/:id/exercise", otcOfferHandler.ExerciseContract)
+
 			// Kreiranje nove ponude — radi je kupac (klijent sa permisijom za trgovinu).
 			otc.POST("/offers", otcOfferHandler.CreateOffer)
 

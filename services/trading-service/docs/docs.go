@@ -2115,6 +2115,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/otc/contracts/{id}/exercise": {
+            "post": {
+                "description": "The buyer who holds the OTC option contract starts or resumes the same-bank settlement saga.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "otc"
+                ],
+                "summary": "Exercise OTC contract",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "OTC contract ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OtcExecutionSagaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/otc/offers": {
             "post": {
                 "description": "Buyer initiates a new OTC negotiation with a seller for publicly listed shares.",
@@ -3749,6 +3808,44 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.OtcExecutionSagaResponse": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "contract_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_step": {
+                    "$ref": "#/definitions/model.OtcExecutionStep"
+                },
+                "execution_key": {
+                    "type": "string"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "next_retry_at": {
+                    "type": "string"
+                },
+                "otc_execution_saga_id": {
+                    "type": "integer"
+                },
+                "retry_count": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.OtcExecutionStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.OtcOfferResponse": {
             "type": "object",
             "properties": {
@@ -3814,6 +3911,9 @@ const docTemplate = `{
                 "amount": {
                     "type": "integer"
                 },
+                "buyer_account_number": {
+                    "type": "string"
+                },
                 "buyer_bank": {
                     "type": "string"
                 },
@@ -3847,6 +3947,9 @@ const docTemplate = `{
                 "premium": {
                     "type": "number"
                 },
+                "seller_account_number": {
+                    "type": "string"
+                },
                 "seller_bank": {
                     "type": "string"
                 },
@@ -3858,6 +3961,9 @@ const docTemplate = `{
                 },
                 "settlement_date": {
                     "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.OtcOptionContractStatus"
                 },
                 "stock_asset_id": {
                     "type": "integer"
@@ -4310,6 +4416,40 @@ const docTemplate = `{
                 "OrderTypeStopLimit"
             ]
         },
+        "model.OtcExecutionStatus": {
+            "type": "string",
+            "enum": [
+                "IN_PROGRESS",
+                "COMPENSATING",
+                "COMPLETED",
+                "FAILED"
+            ],
+            "x-enum-varnames": [
+                "OtcExecutionStatusInProgress",
+                "OtcExecutionStatusCompensating",
+                "OtcExecutionStatusCompleted",
+                "OtcExecutionStatusFailed"
+            ]
+        },
+        "model.OtcExecutionStep": {
+            "type": "string",
+            "enum": [
+                "INIT",
+                "FUNDS_RESERVED",
+                "SHARES_CONFIRMED",
+                "FUNDS_COMMITTED",
+                "OWNERSHIP_TRANSFERRED",
+                "COMPLETED"
+            ],
+            "x-enum-varnames": [
+                "OtcExecutionStepInit",
+                "OtcExecutionStepFundsReserved",
+                "OtcExecutionStepSharesConfirmed",
+                "OtcExecutionStepFundsCommitted",
+                "OtcExecutionStepOwnershipTransferred",
+                "OtcExecutionStepCompleted"
+            ]
+        },
         "model.OtcOfferStatus": {
             "type": "string",
             "enum": [
@@ -4321,6 +4461,21 @@ const docTemplate = `{
                 "OtcOfferStatusActive",
                 "OtcOfferStatusAccepted",
                 "OtcOfferStatusRejected"
+            ]
+        },
+        "model.OtcOptionContractStatus": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "EXERCISED",
+                "EXPIRED",
+                "CANCELLED"
+            ],
+            "x-enum-varnames": [
+                "OtcOptionContractStatusActive",
+                "OtcOptionContractStatusExercised",
+                "OtcOptionContractStatusExpired",
+                "OtcOptionContractStatusCancelled"
             ]
         },
         "model.OwnerType": {

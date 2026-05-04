@@ -718,6 +718,31 @@ definitions:
       user_id:
         type: integer
     type: object
+  dto.OtcExecutionSagaResponse:
+    properties:
+      completed_at:
+        type: string
+      contract_id:
+        type: integer
+      created_at:
+        type: string
+      current_step:
+        $ref: '#/definitions/model.OtcExecutionStep'
+      execution_key:
+        type: string
+      last_error:
+        type: string
+      next_retry_at:
+        type: string
+      otc_execution_saga_id:
+        type: integer
+      retry_count:
+        type: integer
+      status:
+        $ref: '#/definitions/model.OtcExecutionStatus'
+      updated_at:
+        type: string
+    type: object
   dto.OtcOfferResponse:
     properties:
       amount:
@@ -761,6 +786,8 @@ definitions:
     properties:
       amount:
         type: integer
+      buyer_account_number:
+        type: string
       buyer_bank:
         type: string
       buyer_full_name:
@@ -783,6 +810,8 @@ definitions:
         type: integer
       premium:
         type: number
+      seller_account_number:
+        type: string
       seller_bank:
         type: string
       seller_full_name:
@@ -791,6 +820,8 @@ definitions:
         type: integer
       settlement_date:
         type: string
+      status:
+        $ref: '#/definitions/model.OtcOptionContractStatus'
       stock_asset_id:
         type: integer
       stock_name:
@@ -1093,6 +1124,34 @@ definitions:
     - OrderTypeLimit
     - OrderTypeStop
     - OrderTypeStopLimit
+  model.OtcExecutionStatus:
+    enum:
+    - IN_PROGRESS
+    - COMPENSATING
+    - COMPLETED
+    - FAILED
+    type: string
+    x-enum-varnames:
+    - OtcExecutionStatusInProgress
+    - OtcExecutionStatusCompensating
+    - OtcExecutionStatusCompleted
+    - OtcExecutionStatusFailed
+  model.OtcExecutionStep:
+    enum:
+    - INIT
+    - FUNDS_RESERVED
+    - SHARES_CONFIRMED
+    - FUNDS_COMMITTED
+    - OWNERSHIP_TRANSFERRED
+    - COMPLETED
+    type: string
+    x-enum-varnames:
+    - OtcExecutionStepInit
+    - OtcExecutionStepFundsReserved
+    - OtcExecutionStepSharesConfirmed
+    - OtcExecutionStepFundsCommitted
+    - OtcExecutionStepOwnershipTransferred
+    - OtcExecutionStepCompleted
   model.OtcOfferStatus:
     enum:
     - ACTIVE
@@ -1103,6 +1162,18 @@ definitions:
     - OtcOfferStatusActive
     - OtcOfferStatusAccepted
     - OtcOfferStatusRejected
+  model.OtcOptionContractStatus:
+    enum:
+    - ACTIVE
+    - EXERCISED
+    - EXPIRED
+    - CANCELLED
+    type: string
+    x-enum-varnames:
+    - OtcOptionContractStatusActive
+    - OtcOptionContractStatusExercised
+    - OtcOptionContractStatusExpired
+    - OtcOptionContractStatusCancelled
   model.OwnerType:
     enum:
     - CLIENT
@@ -2510,6 +2581,46 @@ paths:
           schema:
             $ref: '#/definitions/errors.AppError'
       summary: List OTC option contracts
+      tags:
+      - otc
+  /api/otc/contracts/{id}/exercise:
+    post:
+      description: The buyer who holds the OTC option contract starts or resumes the
+        same-bank settlement saga.
+      parameters:
+      - description: OTC contract ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OtcExecutionSagaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      summary: Exercise OTC contract
       tags:
       - otc
   /api/otc/offers:

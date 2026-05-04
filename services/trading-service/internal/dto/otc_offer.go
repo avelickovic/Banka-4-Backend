@@ -91,6 +91,20 @@ type OtcOptionContractResponse struct {
 	CreatedAt           time.Time                     `json:"created_at"`
 }
 
+type OtcExecutionSagaResponse struct {
+	OtcExecutionSagaID uint                     `json:"otc_execution_saga_id"`
+	ContractID         uint                     `json:"contract_id"`
+	ExecutionKey       string                   `json:"execution_key"`
+	CurrentStep        model.OtcExecutionStep   `json:"current_step"`
+	Status             model.OtcExecutionStatus `json:"status"`
+	RetryCount         int                      `json:"retry_count"`
+	NextRetryAt        *time.Time               `json:"next_retry_at,omitempty"`
+	LastError          string                   `json:"last_error,omitempty"`
+	CompletedAt        *time.Time               `json:"completed_at,omitempty"`
+	CreatedAt          time.Time                `json:"created_at"`
+	UpdatedAt          time.Time                `json:"updated_at"`
+}
+
 func ToOtcOfferResponse(o model.OtcOffer) OtcOfferResponse {
 	resp := OtcOfferResponse{
 		OtcOfferID:          o.OtcOfferID,
@@ -156,4 +170,20 @@ func ToOtcOptionContractResponseList(contracts []model.OtcOptionContract) []OtcO
 		out[i] = ToOtcOptionContractResponse(c)
 	}
 	return out
+}
+
+func ToOtcExecutionSagaResponse(saga model.OtcExecutionSaga) OtcExecutionSagaResponse {
+	return OtcExecutionSagaResponse{
+		OtcExecutionSagaID: saga.OtcExecutionSagaID,
+		ContractID:         saga.ContractID,
+		ExecutionKey:       saga.ExecutionKey,
+		CurrentStep:        saga.CurrentStep,
+		Status:             saga.Status,
+		RetryCount:         saga.RetryCount,
+		NextRetryAt:        saga.NextRetryAt,
+		LastError:          saga.LastError,
+		CompletedAt:        saga.CompletedAt,
+		CreatedAt:          saga.CreatedAt,
+		UpdatedAt:          saga.UpdatedAt,
+	}
 }
