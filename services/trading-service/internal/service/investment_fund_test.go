@@ -223,6 +223,9 @@ type fakeFundUserClient struct {
 	getClientByIdResp *pb.GetClientByIdResponse
 	getClientByIdErr  error
 
+	getClientsByIdsResp *pb.GetClientsByIdsResponse
+	getClientsByIdsErr  error
+
 	getEmployeeByIdResp *pb.GetEmployeeByIdResponse
 	getEmployeeByIdErr  error
 
@@ -238,6 +241,10 @@ type fakeFundUserClient struct {
 
 func (f *fakeFundUserClient) GetClientById(_ context.Context, _ uint64) (*pb.GetClientByIdResponse, error) {
 	return f.getClientByIdResp, f.getClientByIdErr
+}
+
+func (f *fakeFundUserClient) GetClientsByIds(_ context.Context, _ []uint64) (*pb.GetClientsByIdsResponse, error) {
+	return f.getClientsByIdsResp, f.getClientsByIdsErr
 }
 
 func (f *fakeFundUserClient) GetClientByIdentityId(_ context.Context, _ uint64) (*pb.GetClientByIdResponse, error) {
@@ -276,6 +283,9 @@ func fundSupervisorCtx() context.Context {
 }
 
 func (f *fakeUserClient) GetClientById(ctx context.Context, id uint64) (*pb.GetClientByIdResponse, error) {
+	return nil, nil
+}
+func (f *fakeUserClient) GetClientsByIds(_ context.Context, _ []uint64) (*pb.GetClientsByIdsResponse, error) {
 	return nil, nil
 }
 func (f *fakeUserClient) GetClientByIdentityId(ctx context.Context, identityId uint64) (*pb.GetClientByIdResponse, error) {
