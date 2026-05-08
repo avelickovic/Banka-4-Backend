@@ -949,13 +949,12 @@ func (s *InvestmentFundService) GetFundDetail(ctx context.Context, fundID uint) 
 	}, nil
 }
 
-func (s *InvestmentFundService) CalculateAndSaveDailyHistory(ctx context.Context, historyRepo repository.FundHistoryRecordRepository) error {
+func (s *InvestmentFundService) CalculateAndSaveDailyHistory(ctx context.Context) error {
 	funds, err := s.fundRepo.GetAllInvestmentFunds(ctx)
 	if err != nil {
 		return err
 	}
 
-	var records []*model.FundHistoryRecord
 	for _, fund := range funds {
 		liquidAssets, err := s.getLiquidAssets(ctx, fund.AccountNumber)
 		if err != nil {
@@ -967,23 +966,28 @@ func (s *InvestmentFundService) CalculateAndSaveDailyHistory(ctx context.Context
 			continue
 		}
 
-		totalValue := liquidAssets + secVal
+		fundValue := liquidAssets + secVal
 
 		var totalInvested float64
 		for _, pos := range fund.Positions {
 			totalInvested += pos.TotalInvestedAmount
 		}
 
-		profit := totalValue - totalInvested
+		profit := fundValue - totalInvested
 
-		records = append(records, &model.FundHistoryRecord{
+		perf := &model.FundPerformance{
 			FundID:       fund.FundID,
-			RecordDate:   s.now(),
-			TotalValue:   totalValue,
+			Date:         s.now(), // ili time.Now() ako s.now() pravi problem
+			FundValue:    fundValue,
 			Profit:       profit,
 			LiquidAssets: liquidAssets,
-		})
+		}
+
+		if err := s.fundRepo.SavePerformanceSnapshot(ctx, perf); err != nil {
+			// Ako pukne čuvanje za jedan fond, samo nastavljamo dalje
+			continue
+		}
 	}
 
-	return historyRepo.SaveAll(ctx, records)
+	return nil
 }

@@ -15,8 +15,9 @@ import (
 // ── Fakes ─────────────────────────────────────────────────────────────
 
 type fakeFundRepoForJob struct {
-	funds []model.InvestmentFund
-	err   error
+	funds             []model.InvestmentFund
+	savedPerformances []*model.FundPerformance
+	err               error
 }
 
 func (f *fakeFundRepoForJob) GetAllInvestmentFunds(ctx context.Context) ([]model.InvestmentFund, error) {
@@ -47,20 +48,8 @@ func (f *fakeFundRepoForJob) GetPerformanceHistory(ctx context.Context, fundID u
 	return nil, nil
 }
 func (f *fakeFundRepoForJob) SavePerformanceSnapshot(ctx context.Context, perf *model.FundPerformance) error {
+	f.savedPerformances = append(f.savedPerformances, perf)
 	return nil
-}
-
-type fakeHistoryRepo struct {
-	called bool
-	err    error
-}
-
-func (f *fakeHistoryRepo) Save(ctx context.Context, record *model.FundHistoryRecord) error {
-	return nil
-}
-func (f *fakeHistoryRepo) SaveAll(ctx context.Context, records []*model.FundHistoryRecord) error {
-	f.called = true
-	return f.err
 }
 
 type dummyBankingClient struct {
@@ -76,23 +65,18 @@ type dummyOwnershipRepo struct{}
 func (d *dummyOwnershipRepo) FindByUserId(ctx context.Context, userId uint, ownerType model.OwnerType) ([]model.AssetOwnership, error) {
 	return nil, nil
 }
-
 func (d *dummyOwnershipRepo) FindByID(ctx context.Context, id uint) (*model.AssetOwnership, error) {
 	return nil, nil
 }
-
 func (d *dummyOwnershipRepo) Upsert(ctx context.Context, ownership *model.AssetOwnership) error {
 	return nil
 }
-
 func (d *dummyOwnershipRepo) FindAllPublic(ctx context.Context, page, pageSize int) ([]model.AssetOwnership, int64, error) {
 	return nil, 0, nil
 }
-
 func (d *dummyOwnershipRepo) UpdateOTCFields(ctx context.Context, ownershipID uint, publicAmount, reservedAmount float64) error {
 	return nil
 }
-
 func (d *dummyOwnershipRepo) IncreaseReservedAmount(ctx context.Context, identityID uint, ownerType model.OwnerType, assetID uint, delta float64) error {
 	return nil
 }
@@ -107,30 +91,21 @@ func TestFundHistoryJob_Run_Success(t *testing.T) {
 			{FundID: 1, AccountNumber: "ACC1"},
 		},
 	}
-	historyRepo := &fakeHistoryRepo{}
 
 	svc := service.NewInvestmentFundService(
 		fundRepo,
-		nil, // positionRepo
-		nil, // listingRepo
-		nil, // investmentRepo
-		nil, // clientFundRedemptionRepo (NOVO)
+		nil, nil, nil, nil,
 		&dummyOwnershipRepo{},
-		nil, // exchangeRepo
-		nil, // stockRepo (NOVO)
-		nil, // optionRepo (NOVO)
-		nil, // futuresContractRepo (NOVO)
-		nil, // forexRepo (NOVO)
+		nil, nil, nil, nil, nil,
 		&dummyBankingClient{},
-		nil, // userClient
-		nil, // orderService (NOVO)
+		nil, nil,
 	)
 
-	job := NewFundHistoryJob(svc, historyRepo)
+	job := NewFundHistoryJob(svc)
 
 	err := job.Run(ctx)
 	require.NoError(t, err)
-	require.True(t, historyRepo.called, "expected SaveAll to be called")
+	require.Len(t, fundRepo.savedPerformances, 1, "expected SavePerformanceSnapshot to be called")
 }
 
 func TestFundHistoryJob_Run_ServiceError(t *testing.T) {
@@ -139,29 +114,20 @@ func TestFundHistoryJob_Run_ServiceError(t *testing.T) {
 	fundRepo := &fakeFundRepoForJob{
 		err: errors.New("db down"),
 	}
-	historyRepo := &fakeHistoryRepo{}
 
 	svc := service.NewInvestmentFundService(
 		fundRepo,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil,
 		&dummyOwnershipRepo{},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, nil, nil, nil, nil,
 		&dummyBankingClient{},
-		nil,
-		nil,
+		nil, nil,
 	)
 
-	job := NewFundHistoryJob(svc, historyRepo)
+	job := NewFundHistoryJob(svc)
 
 	err := job.Run(ctx)
 	require.Error(t, err)
 	require.Equal(t, "db down", err.Error())
-	require.False(t, historyRepo.called, "SaveAll should not be called if fetching funds fails")
+	require.Len(t, fundRepo.savedPerformances, 0, "SavePerformanceSnapshot should not be called if fetching funds fails")
 }

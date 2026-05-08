@@ -109,7 +109,6 @@ func main() {
 			repository.NewInvestmentFundRepository,
 			repository.NewClientFundPositionRepository,
 			repository.NewClientFundInvestmentRepository,
-			repository.NewFundHistoryRecordRepository,
 			repository.NewClientFundRedemptionRepository,
 			service.NewInvestmentFundService,
 			handler.NewInvestmentFundHandler,
@@ -147,7 +146,6 @@ func main() {
 				&model.ClientFundInvestment{},
 				&model.ClientFundRedemption{},
 				&model.FundPerformance{},
-				&model.FundHistoryRecord{},
 			)
 		}),
 		fx.Invoke(func(lc fx.Lifecycle, svc *service.StockService) {
