@@ -19,7 +19,7 @@ const (
 // Bitno: ovo NIJE opcioni ugovor. Ovo je pregovor. Kada druga strana prihvati
 // (AcceptOffer), kreira se OtcOptionContract i ova ponuda dobija status ACCEPTED.
 //
-// Polja Amount, PricePerStock, Premium i SettlementDate menjaju se po
+// Polja Amount, PricePerStockRSD, PremiumRSD i SettlementDate menjaju se po
 // kontraponudi — entitet OSTAJE ISTI, samo se ažurira (uz LastModified i
 // ModifiedBy). Strane (Buyer/Seller) se NIKAD ne menjaju u toku pregovora.
 type OtcOffer struct {
@@ -34,10 +34,10 @@ type OtcOffer struct {
 	Stock        Stock `gorm:"foreignKey:StockAssetID;references:AssetID"`
 
 	// Pregovarani parametri — menjaju se po kontraponudi.
-	Amount         int       `gorm:"not null"`
-	PricePerStock  float64   `gorm:"not null"`
-	Premium        float64   `gorm:"not null"`
-	SettlementDate time.Time `gorm:"not null"`
+	Amount           int       `gorm:"not null"`
+	PricePerStockRSD float64   `gorm:"column:price_per_stock;not null"`
+	PremiumRSD       float64   `gorm:"column:premium;not null"`
+	SettlementDate   time.Time `gorm:"not null"`
 
 	// Računi za izvršenje premium transfera kada se ponuda prihvati.
 	// BuyerAccountNumber se postavlja pri kreiranju (kupac je inicijator).

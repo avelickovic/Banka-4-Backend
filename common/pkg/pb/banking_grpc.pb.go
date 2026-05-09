@@ -25,6 +25,10 @@ const (
 	BankingService_GetAccountsByClientID_FullMethodName            = "/banking.v1.BankingService/GetAccountsByClientID"
 	BankingService_ConvertCurrency_FullMethodName                  = "/banking.v1.BankingService/ConvertCurrency"
 	BankingService_ExecuteTradeSettlement_FullMethodName           = "/banking.v1.BankingService/ExecuteTradeSettlement"
+	BankingService_ReserveOtcFunds_FullMethodName                  = "/banking.v1.BankingService/ReserveOtcFunds"
+	BankingService_ReleaseOtcFunds_FullMethodName                  = "/banking.v1.BankingService/ReleaseOtcFunds"
+	BankingService_CommitOtcFunds_FullMethodName                   = "/banking.v1.BankingService/CommitOtcFunds"
+	BankingService_RefundOtcFunds_FullMethodName                   = "/banking.v1.BankingService/RefundOtcFunds"
 	BankingService_CreateFundAccount_FullMethodName                = "/banking.v1.BankingService/CreateFundAccount"
 )
 
@@ -38,6 +42,10 @@ type BankingServiceClient interface {
 	GetAccountsByClientID(ctx context.Context, in *GetAccountsByClientIDRequest, opts ...grpc.CallOption) (*GetAccountsByClientIDResponse, error)
 	ConvertCurrency(ctx context.Context, in *ConvertCurrencyRequest, opts ...grpc.CallOption) (*ConvertCurrencyResponse, error)
 	ExecuteTradeSettlement(ctx context.Context, in *ExecuteTradeSettlementRequest, opts ...grpc.CallOption) (*ExecuteTradeSettlementResponse, error)
+	ReserveOtcFunds(ctx context.Context, in *ReserveOtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error)
+	ReleaseOtcFunds(ctx context.Context, in *OtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error)
+	CommitOtcFunds(ctx context.Context, in *OtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error)
+	RefundOtcFunds(ctx context.Context, in *OtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error)
 	CreateFundAccount(ctx context.Context, in *CreateFundAccountRequest, opts ...grpc.CallOption) (*CreateFundAccountResponse, error)
 }
 
@@ -109,6 +117,46 @@ func (c *bankingServiceClient) ExecuteTradeSettlement(ctx context.Context, in *E
 	return out, nil
 }
 
+func (c *bankingServiceClient) ReserveOtcFunds(ctx context.Context, in *ReserveOtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OtcFundsReservationResponse)
+	err := c.cc.Invoke(ctx, BankingService_ReserveOtcFunds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankingServiceClient) ReleaseOtcFunds(ctx context.Context, in *OtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OtcFundsReservationResponse)
+	err := c.cc.Invoke(ctx, BankingService_ReleaseOtcFunds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankingServiceClient) CommitOtcFunds(ctx context.Context, in *OtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OtcFundsReservationResponse)
+	err := c.cc.Invoke(ctx, BankingService_CommitOtcFunds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankingServiceClient) RefundOtcFunds(ctx context.Context, in *OtcFundsRequest, opts ...grpc.CallOption) (*OtcFundsReservationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OtcFundsReservationResponse)
+	err := c.cc.Invoke(ctx, BankingService_RefundOtcFunds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *bankingServiceClient) CreateFundAccount(ctx context.Context, in *CreateFundAccountRequest, opts ...grpc.CallOption) (*CreateFundAccountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateFundAccountResponse)
@@ -129,6 +177,10 @@ type BankingServiceServer interface {
 	GetAccountsByClientID(context.Context, *GetAccountsByClientIDRequest) (*GetAccountsByClientIDResponse, error)
 	ConvertCurrency(context.Context, *ConvertCurrencyRequest) (*ConvertCurrencyResponse, error)
 	ExecuteTradeSettlement(context.Context, *ExecuteTradeSettlementRequest) (*ExecuteTradeSettlementResponse, error)
+	ReserveOtcFunds(context.Context, *ReserveOtcFundsRequest) (*OtcFundsReservationResponse, error)
+	ReleaseOtcFunds(context.Context, *OtcFundsRequest) (*OtcFundsReservationResponse, error)
+	CommitOtcFunds(context.Context, *OtcFundsRequest) (*OtcFundsReservationResponse, error)
+	RefundOtcFunds(context.Context, *OtcFundsRequest) (*OtcFundsReservationResponse, error)
 	CreateFundAccount(context.Context, *CreateFundAccountRequest) (*CreateFundAccountResponse, error)
 	mustEmbedUnimplementedBankingServiceServer()
 }
@@ -157,6 +209,18 @@ func (UnimplementedBankingServiceServer) ConvertCurrency(context.Context, *Conve
 }
 func (UnimplementedBankingServiceServer) ExecuteTradeSettlement(context.Context, *ExecuteTradeSettlementRequest) (*ExecuteTradeSettlementResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExecuteTradeSettlement not implemented")
+}
+func (UnimplementedBankingServiceServer) ReserveOtcFunds(context.Context, *ReserveOtcFundsRequest) (*OtcFundsReservationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReserveOtcFunds not implemented")
+}
+func (UnimplementedBankingServiceServer) ReleaseOtcFunds(context.Context, *OtcFundsRequest) (*OtcFundsReservationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReleaseOtcFunds not implemented")
+}
+func (UnimplementedBankingServiceServer) CommitOtcFunds(context.Context, *OtcFundsRequest) (*OtcFundsReservationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CommitOtcFunds not implemented")
+}
+func (UnimplementedBankingServiceServer) RefundOtcFunds(context.Context, *OtcFundsRequest) (*OtcFundsReservationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefundOtcFunds not implemented")
 }
 func (UnimplementedBankingServiceServer) CreateFundAccount(context.Context, *CreateFundAccountRequest) (*CreateFundAccountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateFundAccount not implemented")
@@ -290,6 +354,78 @@ func _BankingService_ExecuteTradeSettlement_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BankingService_ReserveOtcFunds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReserveOtcFundsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).ReserveOtcFunds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_ReserveOtcFunds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).ReserveOtcFunds(ctx, req.(*ReserveOtcFundsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankingService_ReleaseOtcFunds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OtcFundsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).ReleaseOtcFunds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_ReleaseOtcFunds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).ReleaseOtcFunds(ctx, req.(*OtcFundsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankingService_CommitOtcFunds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OtcFundsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).CommitOtcFunds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_CommitOtcFunds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).CommitOtcFunds(ctx, req.(*OtcFundsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankingService_RefundOtcFunds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OtcFundsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankingServiceServer).RefundOtcFunds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankingService_RefundOtcFunds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankingServiceServer).RefundOtcFunds(ctx, req.(*OtcFundsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BankingService_CreateFundAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateFundAccountRequest)
 	if err := dec(in); err != nil {
@@ -338,6 +474,22 @@ var BankingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExecuteTradeSettlement",
 			Handler:    _BankingService_ExecuteTradeSettlement_Handler,
+		},
+		{
+			MethodName: "ReserveOtcFunds",
+			Handler:    _BankingService_ReserveOtcFunds_Handler,
+		},
+		{
+			MethodName: "ReleaseOtcFunds",
+			Handler:    _BankingService_ReleaseOtcFunds_Handler,
+		},
+		{
+			MethodName: "CommitOtcFunds",
+			Handler:    _BankingService_CommitOtcFunds_Handler,
+		},
+		{
+			MethodName: "RefundOtcFunds",
+			Handler:    _BankingService_RefundOtcFunds_Handler,
 		},
 		{
 			MethodName: "CreateFundAccount",

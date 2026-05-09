@@ -79,6 +79,8 @@ func TestMain(m *testing.M) {
 		&model.TaxCollection{},
 		&model.OtcOffer{},
 		&model.OtcOptionContract{},
+		&model.OtcShareReservation{},
+		&model.OtcExecutionSaga{},
 		&model.InvestmentFund{},
 		&model.ClientFundPosition{},
 		&model.ClientFundInvestment{},
@@ -240,6 +242,29 @@ func (f *fakeBankingClient) ExecuteTradeSettlement(_ context.Context, _, _ strin
 	return &pb.ExecuteTradeSettlementResponse{TransactionId: 1}, nil
 }
 
+func (f *fakeBankingClient) ReserveOtcFunds(_ context.Context, req *pb.ReserveOtcFundsRequest) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{
+		ExecutionId:         req.ExecutionId,
+		Status:              pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RESERVED,
+		TradeAmount:         req.Amount,
+		TradeCurrencyCode:   req.CurrencyCode,
+		BuyerAccountNumber:  req.BuyerAccountNumber,
+		SellerAccountNumber: req.SellerAccountNumber,
+	}, nil
+}
+
+func (f *fakeBankingClient) ReleaseOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RELEASED}, nil
+}
+
+func (f *fakeBankingClient) CommitOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_COMMITTED}, nil
+}
+
+func (f *fakeBankingClient) RefundOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_REFUNDED}, nil
+}
+
 type fakePermissionProvider struct {
 	perms []permission.Permission
 }
@@ -312,6 +337,9 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 	taxRepo := repository.NewTaxRepository(db)
 	otcOfferRepo := repository.NewOtcOfferRepository(db)
 	otcContractRepo := repository.NewOtcOptionContractRepository(db)
+	otcShareReservationRepo := repository.NewOtcShareReservationRepository(db)
+	otcExecutionRepo := repository.NewOtcExecutionSagaRepository(db)
+	txManager := repository.NewGormTransactionManager(db)
 
 	exchangeSvc := service.NewExchangeService(exchangeRepo)
 	listingSvc := service.NewListingService(listingRepo, futuresRepo, forexRepo, optionRepo)
@@ -327,7 +355,9 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 
 	taxSvc := service.NewTaxService(taxRepo, bankingClient, cfg)
 	otcSvc := service.NewOTCService(assetOwnershipRepo, listingRepo, userClient)
-	otcOfferSvc := service.NewOtcOfferService(otcOfferRepo, otcContractRepo, assetOwnershipRepo, stockRepo, bankingClient, userClient)
+	otcProcessingSvc := service.NewOtcDealProcessingService(otcOfferRepo, otcContractRepo, otcShareReservationRepo, otcExecutionRepo, assetOwnershipRepo, txManager, bankingClient)
+	otcOfferSvc := service.NewOtcOfferService(otcOfferRepo, otcContractRepo, assetOwnershipRepo, stockRepo, bankingClient,
+		userClient, otcProcessingSvc)
 
 	healthHandler := handler.NewHealthHandler()
 	exchangeHandler := handler.NewExchangeHandler(exchangeSvc)

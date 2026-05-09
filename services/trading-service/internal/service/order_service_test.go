@@ -280,6 +280,22 @@ func (c *fakeOrderBankingClient) ExecuteTradeSettlement(_ context.Context, _, _ 
 	return c.settlementResp, c.settlementErr
 }
 
+func (c *fakeOrderBankingClient) ReserveOtcFunds(_ context.Context, req *pb.ReserveOtcFundsRequest) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: req.ExecutionId, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RESERVED}, nil
+}
+
+func (c *fakeOrderBankingClient) ReleaseOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RELEASED}, nil
+}
+
+func (c *fakeOrderBankingClient) CommitOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_COMMITTED}, nil
+}
+
+func (c *fakeOrderBankingClient) RefundOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_REFUNDED}, nil
+}
+
 // ── Fake Tax Recorder ─────────────────────────────────────────────
 
 type fakeTaxRecorder struct {

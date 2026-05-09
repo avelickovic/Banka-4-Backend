@@ -151,6 +151,22 @@ func (f *fakeBankingClient) ExecuteTradeSettlement(ctx context.Context, accountN
 	return nil, nil
 }
 
+func (f *fakeBankingClient) ReserveOtcFunds(_ context.Context, req *pb.ReserveOtcFundsRequest) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: req.ExecutionId, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RESERVED}, nil
+}
+
+func (f *fakeBankingClient) ReleaseOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RELEASED}, nil
+}
+
+func (f *fakeBankingClient) CommitOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_COMMITTED}, nil
+}
+
+func (f *fakeBankingClient) RefundOtcFunds(_ context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	return &pb.OtcFundsReservationResponse{ExecutionId: executionID, Status: pb.OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_REFUNDED}, nil
+}
+
 func (f *fakeBankingClient) CreateFundAccount(ctx context.Context, fundName string, managerID uint64) (string, error) {
 	return "", nil
 }

@@ -46,6 +46,25 @@ func (r *fakeAssetOwnershipRepo) Upsert(_ context.Context, ownership *model.Asse
 func (r *fakeAssetOwnershipRepo) FindByID(_ context.Context, _ uint) (*model.AssetOwnership, error) {
 	return r.byID, r.findByIDErr
 }
+func (r *fakeAssetOwnershipRepo) FindByUserAndAsset(_ context.Context, userID uint, ownerType model.OwnerType, assetID uint) (*model.AssetOwnership, error) {
+	for i := range r.ownerships {
+		ownership := r.ownerships[i]
+		if ownership.UserId == userID && ownership.OwnerType == ownerType && ownership.AssetID == assetID {
+			return new(ownership), nil
+		}
+	}
+
+	if r.byID != nil && r.byID.UserId == userID && r.byID.OwnerType == ownerType && r.byID.AssetID == assetID {
+		return new(*r.byID), nil
+	}
+
+	return nil, r.findErr
+}
+
+func (r *fakeAssetOwnershipRepo) FindByUserAndAssetForUpdate(ctx context.Context, userID uint, ownerType model.OwnerType, assetID uint) (*model.AssetOwnership, error) {
+	return r.FindByUserAndAsset(ctx, userID, ownerType, assetID)
+}
+
 func (r *fakeAssetOwnershipRepo) FindAllPublic(_ context.Context, _, _ int) ([]model.AssetOwnership, int64, error) {
 	return r.allPublic, r.allPublicTotal, r.allPublicErr
 }

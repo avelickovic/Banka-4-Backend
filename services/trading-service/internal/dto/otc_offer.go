@@ -10,8 +10,8 @@ import (
 type CreateOtcOfferRequest struct {
 	AssetOwnershipID   uint      `json:"asset_ownership_id" binding:"required"`
 	Amount             int       `json:"amount" binding:"required,gt=0"`
-	PricePerStock      float64   `json:"price_per_stock" binding:"required,gt=0"`
-	Premium            float64   `json:"premium" binding:"required,gt=0"`
+	PricePerStockRSD   float64   `json:"price_per_stock_rsd" binding:"required,gt=0"`
+	PremiumRSD         float64   `json:"premium_rsd" binding:"required,gt=0"`
 	SettlementDate     time.Time `json:"settlement_date" binding:"required"`
 	BuyerAccountNumber string    `json:"buyer_account_number" binding:"required"`
 }
@@ -20,11 +20,11 @@ type CreateOtcOfferRequest struct {
 // AccountNumber je opcioni: prodavac ga šalje samo prvi put da bi postavio
 // SellerAccountNumber na ponudi (potreban za kasniji premium transfer).
 type CounterOfferRequest struct {
-	Amount         int       `json:"amount" binding:"required,gt=0"`
-	PricePerStock  float64   `json:"price_per_stock" binding:"required,gt=0"`
-	Premium        float64   `json:"premium" binding:"required,gt=0"`
-	SettlementDate time.Time `json:"settlement_date" binding:"required"`
-	AccountNumber  *string   `json:"account_number,omitempty"`
+	Amount           int       `json:"amount" binding:"required,gt=0"`
+	PricePerStockRSD float64   `json:"price_per_stock_rsd" binding:"required,gt=0"`
+	PremiumRSD       float64   `json:"premium_rsd" binding:"required,gt=0"`
+	SettlementDate   time.Time `json:"settlement_date" binding:"required"`
+	AccountNumber    *string   `json:"account_number,omitempty"`
 }
 
 // AcceptOfferRequest — strana suprotna od ModifiedBy prihvata ponudu.
@@ -49,8 +49,8 @@ type OtcOfferResponse struct {
 	Ticker              string               `json:"ticker,omitempty"`
 	StockName           string               `json:"stock_name,omitempty"`
 	Amount              int                  `json:"amount"`
-	PricePerStock       float64              `json:"price_per_stock"`
-	Premium             float64              `json:"premium"`
+	PricePerStockRSD    float64              `json:"price_per_stock_rsd"`
+	PremiumRSD          float64              `json:"premium_rsd"`
 	SettlementDate      time.Time            `json:"settlement_date"`
 	BuyerAccountNumber  string               `json:"buyer_account_number"`
 	SellerAccountNumber *string              `json:"seller_account_number,omitempty"`
@@ -74,18 +74,34 @@ type OtcOptionContractResponse struct {
 	SellerFullName string `json:"seller_full_name"`
 	SellerBank     string `json:"seller_bank"`
 
-	StockAssetID    uint       `json:"stock_asset_id"`
-	Ticker          string     `json:"ticker,omitempty"`
-	StockName       string     `json:"stock_name,omitempty"`
-	Amount          int        `json:"amount"`
-	ListingCurrency string     `json:"listing_currency"`
-	StrikePrice     float64    `json:"strike_price"`
-	CurrentPrice    *float64   `json:"current_price"`
-	Premium         float64    `json:"premium"`
-	SettlementDate  time.Time  `json:"settlement_date"`
-	IsExercised     bool       `json:"is_exercised"`
-	ExercisedAt     *time.Time `json:"exercised_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
+	StockAssetID        uint                          `json:"stock_asset_id"`
+	Ticker              string                        `json:"ticker,omitempty"`
+	StockName           string                        `json:"stock_name,omitempty"`
+	Amount              int                           `json:"amount"`
+	StrikePriceRSD      float64                       `json:"strike_price_rsd"`
+	PremiumRSD          float64                       `json:"premium_rsd"`
+	ListingCurrency     string                        `json:"listing_currency"`
+	CurrentPrice        *float64                      `json:"current_price"`
+	SettlementDate      time.Time                     `json:"settlement_date"`
+	BuyerAccountNumber  string                        `json:"buyer_account_number"`
+	SellerAccountNumber string                        `json:"seller_account_number"`
+	Status              model.OtcOptionContractStatus `json:"status"`
+	ExercisedAt         *time.Time                    `json:"exercised_at,omitempty"`
+	CreatedAt           time.Time                     `json:"created_at"`
+}
+
+type OtcExecutionSagaResponse struct {
+	OtcExecutionSagaID uint                     `json:"otc_execution_saga_id"`
+	ContractID         uint                     `json:"contract_id"`
+	ExecutionKey       string                   `json:"execution_key"`
+	CurrentStep        model.OtcExecutionStep   `json:"current_step"`
+	Status             model.OtcExecutionStatus `json:"status"`
+	RetryCount         int                      `json:"retry_count"`
+	NextRetryAt        *time.Time               `json:"next_retry_at,omitempty"`
+	LastError          string                   `json:"last_error,omitempty"`
+	CompletedAt        *time.Time               `json:"completed_at,omitempty"`
+	CreatedAt          time.Time                `json:"created_at"`
+	UpdatedAt          time.Time                `json:"updated_at"`
 }
 
 func ToOtcOfferResponse(o model.OtcOffer) OtcOfferResponse {
@@ -95,8 +111,8 @@ func ToOtcOfferResponse(o model.OtcOffer) OtcOfferResponse {
 		SellerID:            o.SellerID,
 		StockAssetID:        o.StockAssetID,
 		Amount:              o.Amount,
-		PricePerStock:       o.PricePerStock,
-		Premium:             o.Premium,
+		PricePerStockRSD:    o.PricePerStockRSD,
+		PremiumRSD:          o.PremiumRSD,
 		SettlementDate:      o.SettlementDate,
 		BuyerAccountNumber:  o.BuyerAccountNumber,
 		SellerAccountNumber: o.SellerAccountNumber,
@@ -130,10 +146,12 @@ func ToOtcOptionContractResponse(c model.OtcOptionContract) OtcOptionContractRes
 		SellerID:            c.SellerID,
 		StockAssetID:        c.StockAssetID,
 		Amount:              c.Amount,
-		StrikePrice:         c.StrikePrice,
-		Premium:             c.Premium,
+		StrikePriceRSD:      c.StrikePriceRSD,
+		PremiumRSD:          c.PremiumRSD,
 		SettlementDate:      c.SettlementDate,
-		IsExercised:         c.IsExercised,
+		BuyerAccountNumber:  c.BuyerAccountNumber,
+		SellerAccountNumber: c.SellerAccountNumber,
+		Status:              c.Status,
 		ExercisedAt:         c.ExercisedAt,
 		CreatedAt:           c.CreatedAt,
 	}
@@ -150,4 +168,20 @@ func ToOtcOptionContractResponseList(contracts []model.OtcOptionContract) []OtcO
 		out[i] = ToOtcOptionContractResponse(c)
 	}
 	return out
+}
+
+func ToOtcExecutionSagaResponse(saga model.OtcExecutionSaga) OtcExecutionSagaResponse {
+	return OtcExecutionSagaResponse{
+		OtcExecutionSagaID: saga.OtcExecutionSagaID,
+		ContractID:         saga.ContractID,
+		ExecutionKey:       saga.ExecutionKey,
+		CurrentStep:        saga.CurrentStep,
+		Status:             saga.Status,
+		RetryCount:         saga.RetryCount,
+		NextRetryAt:        saga.NextRetryAt,
+		LastError:          saga.LastError,
+		CompletedAt:        saga.CompletedAt,
+		CreatedAt:          saga.CreatedAt,
+		UpdatedAt:          saga.UpdatedAt,
+	}
 }

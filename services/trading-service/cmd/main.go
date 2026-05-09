@@ -103,6 +103,10 @@ func main() {
 			service.NewTaxScheduler,
 			repository.NewOtcOfferRepository,
 			repository.NewOtcOptionContractRepository,
+			repository.NewOtcShareReservationRepository,
+			repository.NewOtcExecutionSagaRepository,
+			repository.NewGormTransactionManager,
+			service.NewOtcDealProcessingService,
 			service.NewOtcOfferService,
 			handler.NewOtcOfferHandler,
 			service.NewOTCService,
@@ -143,6 +147,8 @@ func main() {
 				&model.TaxCollection{},
 				&model.OtcOffer{},
 				&model.OtcOptionContract{},
+				&model.OtcShareReservation{},
+				&model.OtcExecutionSaga{},
 				&model.InvestmentFund{},
 				&model.ClientFundPosition{},
 				&model.ClientFundInvestment{},
@@ -241,6 +247,18 @@ func main() {
 				},
 				OnStop: func(ctx context.Context) error {
 					orderService.Stop()
+					return nil
+				},
+			})
+		}),
+		fx.Invoke(func(lifecycle fx.Lifecycle, otcProcessingService *service.OtcDealProcessingService) {
+			lifecycle.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					otcProcessingService.Start()
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					otcProcessingService.Stop()
 					return nil
 				},
 			})

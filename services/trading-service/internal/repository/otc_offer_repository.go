@@ -10,6 +10,7 @@ type OtcOfferRepository interface {
 	Create(ctx context.Context, offer *model.OtcOffer) error
 	Save(ctx context.Context, offer *model.OtcOffer) error
 	FindByID(ctx context.Context, id uint) (*model.OtcOffer, error)
+	FindByIDForUpdate(ctx context.Context, id uint) (*model.OtcOffer, error)
 
 	// FindActiveForUser vraća sve aktivne ponude u kojima učestvuje korisnik
 	// (bilo kao kupac, bilo kao prodavac). Koristi se za stranicu "Aktivne ponude".

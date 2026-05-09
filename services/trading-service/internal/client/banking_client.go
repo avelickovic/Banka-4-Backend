@@ -14,5 +14,9 @@ type BankingClient interface {
 	ConvertCurrency(ctx context.Context, amount float64, fromCode, toCode string) (float64, error)
 	ExecuteTradeSettlement(ctx context.Context, accountNumber, currencyCode string, direction pb.TradeSettlementDirection, amount float64) (*pb.ExecuteTradeSettlementResponse, error)
 	GetAccountCurrency(ctx context.Context, accountNumber string) (string, error)
+	ReserveOtcFunds(ctx context.Context, req *pb.ReserveOtcFundsRequest) (*pb.OtcFundsReservationResponse, error)
+	ReleaseOtcFunds(ctx context.Context, executionID string) (*pb.OtcFundsReservationResponse, error)
+	CommitOtcFunds(ctx context.Context, executionID string) (*pb.OtcFundsReservationResponse, error)
+	RefundOtcFunds(ctx context.Context, executionID string) (*pb.OtcFundsReservationResponse, error)
 	CreateFundAccount(ctx context.Context, fundName string, managerID uint64) (string, error)
 }

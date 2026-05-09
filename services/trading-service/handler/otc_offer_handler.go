@@ -52,7 +52,7 @@ func (h *OtcOfferHandler) CreateOffer(c *gin.Context) {
 // SendCounterOffer updates the negotiation parameters on behalf of either party.
 //
 // @Summary     Send counter-offer
-// @Description Either party may update the offer parameters (amount, price, premium, settlement date).
+// @Description Either party may update the offer parameters (amount, price in RSD, premium in RSD, settlement date).
 //
 //	Parties alternate turns — the same user cannot send two consecutive counter-offers.
 //
@@ -86,12 +86,12 @@ func (h *OtcOfferHandler) SendCounterOffer(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.ToOtcOfferResponse(*offer))
 }
 
-// AcceptOffer accepts the current offer, creating an option contract and transferring the premium.
+// AcceptOffer accepts the current offer, creating an option contract and transferring the premium in RSD.
 //
 // @Summary     Accept OTC offer
 // @Description The party opposite to ModifiedBy accepts the offer. An option contract is created
 //
-//	and the premium is immediately transferred from the buyer's account to the seller's.
+//	and the premium in RSD is immediately transferred from the buyer's account to the seller's.
 //	If the seller has not yet provided their account number, it must be supplied here.
 //
 // @Tags        otc
@@ -206,11 +206,49 @@ func (h *OtcOfferHandler) GetMyOptionContracts(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// ExerciseContract starts or resumes settlement of an active OTC option contract.
+//
+// @Summary     Exercise OTC contract
+// @Description The buyer who holds the OTC option contract starts or resumes the same-bank settlement saga.
+// @Tags        otc
+// @Produce     json
+// @Param       id path int true "OTC contract ID"
+// @Success     200 {object} dto.OtcExecutionSagaResponse
+// @Failure     400 {object} errors.AppError
+// @Failure     401 {object} errors.AppError
+// @Failure     403 {object} errors.AppError
+// @Failure     404 {object} errors.AppError
+// @Failure     409 {object} errors.AppError
+// @Router      /api/otc/contracts/{id}/exercise [post]
+func (h *OtcOfferHandler) ExerciseContract(c *gin.Context) {
+	id, err := parseContractID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	execution, err := h.service.ExerciseContract(c.Request.Context(), id)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToOtcExecutionSagaResponse(*execution))
+}
+
 // parseOfferID extracts and validates the :id path parameter as a uint.
 func parseOfferID(c *gin.Context) (uint, error) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		return 0, errors.BadRequestErr("invalid offer id")
+	}
+	return uint(id), nil
+}
+
+func parseContractID(c *gin.Context) (uint, error) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		return 0, errors.BadRequestErr("invalid contract id")
 	}
 	return uint(id), nil
 }

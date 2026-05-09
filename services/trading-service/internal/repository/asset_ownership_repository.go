@@ -9,6 +9,8 @@ import (
 type AssetOwnershipRepository interface {
 	FindByUserId(ctx context.Context, userId uint, ownerType model.OwnerType) ([]model.AssetOwnership, error)
 	FindByID(ctx context.Context, id uint) (*model.AssetOwnership, error)
+	FindByUserAndAsset(ctx context.Context, userId uint, ownerType model.OwnerType, assetID uint) (*model.AssetOwnership, error)
+	FindByUserAndAssetForUpdate(ctx context.Context, userId uint, ownerType model.OwnerType, assetID uint) (*model.AssetOwnership, error)
 	Upsert(ctx context.Context, ownership *model.AssetOwnership) error
 	// IncreaseReservedAmount atomically adds delta to the reserved_amount for the
 	// given identity+ownerType+assetID row. It is a no-op when no row matches.

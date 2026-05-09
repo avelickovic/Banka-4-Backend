@@ -70,6 +70,61 @@ func (TradeSettlementDirection) EnumDescriptor() ([]byte, []int) {
 	return file_common_proto_banking_proto_rawDescGZIP(), []int{0}
 }
 
+type OtcFundsReservationStatus int32
+
+const (
+	OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_UNSPECIFIED OtcFundsReservationStatus = 0
+	OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RESERVED    OtcFundsReservationStatus = 1
+	OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_RELEASED    OtcFundsReservationStatus = 2
+	OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_COMMITTED   OtcFundsReservationStatus = 3
+	OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_REFUNDED    OtcFundsReservationStatus = 4
+)
+
+// Enum value maps for OtcFundsReservationStatus.
+var (
+	OtcFundsReservationStatus_name = map[int32]string{
+		0: "OTC_FUNDS_RESERVATION_STATUS_UNSPECIFIED",
+		1: "OTC_FUNDS_RESERVATION_STATUS_RESERVED",
+		2: "OTC_FUNDS_RESERVATION_STATUS_RELEASED",
+		3: "OTC_FUNDS_RESERVATION_STATUS_COMMITTED",
+		4: "OTC_FUNDS_RESERVATION_STATUS_REFUNDED",
+	}
+	OtcFundsReservationStatus_value = map[string]int32{
+		"OTC_FUNDS_RESERVATION_STATUS_UNSPECIFIED": 0,
+		"OTC_FUNDS_RESERVATION_STATUS_RESERVED":    1,
+		"OTC_FUNDS_RESERVATION_STATUS_RELEASED":    2,
+		"OTC_FUNDS_RESERVATION_STATUS_COMMITTED":   3,
+		"OTC_FUNDS_RESERVATION_STATUS_REFUNDED":    4,
+	}
+)
+
+func (x OtcFundsReservationStatus) Enum() *OtcFundsReservationStatus {
+	p := new(OtcFundsReservationStatus)
+	*p = x
+	return p
+}
+
+func (x OtcFundsReservationStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OtcFundsReservationStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_common_proto_banking_proto_enumTypes[1].Descriptor()
+}
+
+func (OtcFundsReservationStatus) Type() protoreflect.EnumType {
+	return &file_common_proto_banking_proto_enumTypes[1]
+}
+
+func (x OtcFundsReservationStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OtcFundsReservationStatus.Descriptor instead.
+func (OtcFundsReservationStatus) EnumDescriptor() ([]byte, []int) {
+	return file_common_proto_banking_proto_rawDescGZIP(), []int{1}
+}
+
 type GetAccountByNumberRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountNumber string                 `protobuf:"bytes,1,opt,name=account_number,json=accountNumber,proto3" json:"account_number,omitempty"`
@@ -826,6 +881,242 @@ func (x *ExecuteTradeSettlementResponse) GetDestinationCurrencyCode() string {
 	return ""
 }
 
+type ReserveOtcFundsRequest struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId         string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	BuyerAccountNumber  string                 `protobuf:"bytes,2,opt,name=buyer_account_number,json=buyerAccountNumber,proto3" json:"buyer_account_number,omitempty"`
+	SellerAccountNumber string                 `protobuf:"bytes,3,opt,name=seller_account_number,json=sellerAccountNumber,proto3" json:"seller_account_number,omitempty"`
+	Amount              float64                `protobuf:"fixed64,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	CurrencyCode        string                 `protobuf:"bytes,5,opt,name=currency_code,json=currencyCode,proto3" json:"currency_code,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *ReserveOtcFundsRequest) Reset() {
+	*x = ReserveOtcFundsRequest{}
+	mi := &file_common_proto_banking_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReserveOtcFundsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReserveOtcFundsRequest) ProtoMessage() {}
+
+func (x *ReserveOtcFundsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_banking_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReserveOtcFundsRequest.ProtoReflect.Descriptor instead.
+func (*ReserveOtcFundsRequest) Descriptor() ([]byte, []int) {
+	return file_common_proto_banking_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ReserveOtcFundsRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *ReserveOtcFundsRequest) GetBuyerAccountNumber() string {
+	if x != nil {
+		return x.BuyerAccountNumber
+	}
+	return ""
+}
+
+func (x *ReserveOtcFundsRequest) GetSellerAccountNumber() string {
+	if x != nil {
+		return x.SellerAccountNumber
+	}
+	return ""
+}
+
+func (x *ReserveOtcFundsRequest) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *ReserveOtcFundsRequest) GetCurrencyCode() string {
+	if x != nil {
+		return x.CurrencyCode
+	}
+	return ""
+}
+
+type OtcFundsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OtcFundsRequest) Reset() {
+	*x = OtcFundsRequest{}
+	mi := &file_common_proto_banking_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OtcFundsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OtcFundsRequest) ProtoMessage() {}
+
+func (x *OtcFundsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_banking_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OtcFundsRequest.ProtoReflect.Descriptor instead.
+func (*OtcFundsRequest) Descriptor() ([]byte, []int) {
+	return file_common_proto_banking_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *OtcFundsRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+type OtcFundsReservationResponse struct {
+	state                   protoimpl.MessageState    `protogen:"open.v1"`
+	ExecutionId             string                    `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	Status                  OtcFundsReservationStatus `protobuf:"varint,2,opt,name=status,proto3,enum=banking.v1.OtcFundsReservationStatus" json:"status,omitempty"`
+	TradeAmount             float64                   `protobuf:"fixed64,3,opt,name=trade_amount,json=tradeAmount,proto3" json:"trade_amount,omitempty"`
+	TradeCurrencyCode       string                    `protobuf:"bytes,4,opt,name=trade_currency_code,json=tradeCurrencyCode,proto3" json:"trade_currency_code,omitempty"`
+	SourceAmount            float64                   `protobuf:"fixed64,5,opt,name=source_amount,json=sourceAmount,proto3" json:"source_amount,omitempty"`
+	SourceCurrencyCode      string                    `protobuf:"bytes,6,opt,name=source_currency_code,json=sourceCurrencyCode,proto3" json:"source_currency_code,omitempty"`
+	DestinationAmount       float64                   `protobuf:"fixed64,7,opt,name=destination_amount,json=destinationAmount,proto3" json:"destination_amount,omitempty"`
+	DestinationCurrencyCode string                    `protobuf:"bytes,8,opt,name=destination_currency_code,json=destinationCurrencyCode,proto3" json:"destination_currency_code,omitempty"`
+	BuyerAccountNumber      string                    `protobuf:"bytes,9,opt,name=buyer_account_number,json=buyerAccountNumber,proto3" json:"buyer_account_number,omitempty"`
+	SellerAccountNumber     string                    `protobuf:"bytes,10,opt,name=seller_account_number,json=sellerAccountNumber,proto3" json:"seller_account_number,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *OtcFundsReservationResponse) Reset() {
+	*x = OtcFundsReservationResponse{}
+	mi := &file_common_proto_banking_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OtcFundsReservationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OtcFundsReservationResponse) ProtoMessage() {}
+
+func (x *OtcFundsReservationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_banking_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OtcFundsReservationResponse.ProtoReflect.Descriptor instead.
+func (*OtcFundsReservationResponse) Descriptor() ([]byte, []int) {
+	return file_common_proto_banking_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *OtcFundsReservationResponse) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *OtcFundsReservationResponse) GetStatus() OtcFundsReservationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return OtcFundsReservationStatus_OTC_FUNDS_RESERVATION_STATUS_UNSPECIFIED
+}
+
+func (x *OtcFundsReservationResponse) GetTradeAmount() float64 {
+	if x != nil {
+		return x.TradeAmount
+	}
+	return 0
+}
+
+func (x *OtcFundsReservationResponse) GetTradeCurrencyCode() string {
+	if x != nil {
+		return x.TradeCurrencyCode
+	}
+	return ""
+}
+
+func (x *OtcFundsReservationResponse) GetSourceAmount() float64 {
+	if x != nil {
+		return x.SourceAmount
+	}
+	return 0
+}
+
+func (x *OtcFundsReservationResponse) GetSourceCurrencyCode() string {
+	if x != nil {
+		return x.SourceCurrencyCode
+	}
+	return ""
+}
+
+func (x *OtcFundsReservationResponse) GetDestinationAmount() float64 {
+	if x != nil {
+		return x.DestinationAmount
+	}
+	return 0
+}
+
+func (x *OtcFundsReservationResponse) GetDestinationCurrencyCode() string {
+	if x != nil {
+		return x.DestinationCurrencyCode
+	}
+	return ""
+}
+
+func (x *OtcFundsReservationResponse) GetBuyerAccountNumber() string {
+	if x != nil {
+		return x.BuyerAccountNumber
+	}
+	return ""
+}
+
+func (x *OtcFundsReservationResponse) GetSellerAccountNumber() string {
+	if x != nil {
+		return x.SellerAccountNumber
+	}
+	return ""
+}
+
 type CreateFundAccountRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FundName      string                 `protobuf:"bytes,1,opt,name=fund_name,json=fundName,proto3" json:"fund_name,omitempty"`
@@ -836,7 +1127,7 @@ type CreateFundAccountRequest struct {
 
 func (x *CreateFundAccountRequest) Reset() {
 	*x = CreateFundAccountRequest{}
-	mi := &file_common_proto_banking_proto_msgTypes[13]
+	mi := &file_common_proto_banking_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -848,7 +1139,7 @@ func (x *CreateFundAccountRequest) String() string {
 func (*CreateFundAccountRequest) ProtoMessage() {}
 
 func (x *CreateFundAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_banking_proto_msgTypes[13]
+	mi := &file_common_proto_banking_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -861,7 +1152,7 @@ func (x *CreateFundAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateFundAccountRequest.ProtoReflect.Descriptor instead.
 func (*CreateFundAccountRequest) Descriptor() ([]byte, []int) {
-	return file_common_proto_banking_proto_rawDescGZIP(), []int{13}
+	return file_common_proto_banking_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CreateFundAccountRequest) GetFundName() string {
@@ -887,7 +1178,7 @@ type CreateFundAccountResponse struct {
 
 func (x *CreateFundAccountResponse) Reset() {
 	*x = CreateFundAccountResponse{}
-	mi := &file_common_proto_banking_proto_msgTypes[14]
+	mi := &file_common_proto_banking_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -899,7 +1190,7 @@ func (x *CreateFundAccountResponse) String() string {
 func (*CreateFundAccountResponse) ProtoMessage() {}
 
 func (x *CreateFundAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_banking_proto_msgTypes[14]
+	mi := &file_common_proto_banking_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -912,7 +1203,7 @@ func (x *CreateFundAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateFundAccountResponse.ProtoReflect.Descriptor instead.
 func (*CreateFundAccountResponse) Descriptor() ([]byte, []int) {
-	return file_common_proto_banking_proto_rawDescGZIP(), []int{14}
+	return file_common_proto_banking_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CreateFundAccountResponse) GetAccountNumber() string {
@@ -977,7 +1268,27 @@ const file_common_proto_banking_proto_rawDesc = "" +
 	"\rsource_amount\x18\x02 \x01(\x01R\fsourceAmount\x120\n" +
 	"\x14source_currency_code\x18\x03 \x01(\tR\x12sourceCurrencyCode\x12-\n" +
 	"\x12destination_amount\x18\x04 \x01(\x01R\x11destinationAmount\x12:\n" +
-	"\x19destination_currency_code\x18\x05 \x01(\tR\x17destinationCurrencyCode\"V\n" +
+	"\x19destination_currency_code\x18\x05 \x01(\tR\x17destinationCurrencyCode\"\xde\x01\n" +
+	"\x16ReserveOtcFundsRequest\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x120\n" +
+	"\x14buyer_account_number\x18\x02 \x01(\tR\x12buyerAccountNumber\x122\n" +
+	"\x15seller_account_number\x18\x03 \x01(\tR\x13sellerAccountNumber\x12\x16\n" +
+	"\x06amount\x18\x04 \x01(\x01R\x06amount\x12#\n" +
+	"\rcurrency_code\x18\x05 \x01(\tR\fcurrencyCode\"4\n" +
+	"\x0fOtcFundsRequest\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\"\xfa\x03\n" +
+	"\x1bOtcFundsReservationResponse\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x12=\n" +
+	"\x06status\x18\x02 \x01(\x0e2%.banking.v1.OtcFundsReservationStatusR\x06status\x12!\n" +
+	"\ftrade_amount\x18\x03 \x01(\x01R\vtradeAmount\x12.\n" +
+	"\x13trade_currency_code\x18\x04 \x01(\tR\x11tradeCurrencyCode\x12#\n" +
+	"\rsource_amount\x18\x05 \x01(\x01R\fsourceAmount\x120\n" +
+	"\x14source_currency_code\x18\x06 \x01(\tR\x12sourceCurrencyCode\x12-\n" +
+	"\x12destination_amount\x18\a \x01(\x01R\x11destinationAmount\x12:\n" +
+	"\x19destination_currency_code\x18\b \x01(\tR\x17destinationCurrencyCode\x120\n" +
+	"\x14buyer_account_number\x18\t \x01(\tR\x12buyerAccountNumber\x122\n" +
+	"\x15seller_account_number\x18\n" +
+	" \x01(\tR\x13sellerAccountNumber\"V\n" +
 	"\x18CreateFundAccountRequest\x12\x1b\n" +
 	"\tfund_name\x18\x01 \x01(\tR\bfundName\x12\x1d\n" +
 	"\n" +
@@ -987,14 +1298,24 @@ const file_common_proto_banking_proto_rawDesc = "" +
 	"\x18TradeSettlementDirection\x12*\n" +
 	"&TRADE_SETTLEMENT_DIRECTION_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eTRADE_SETTLEMENT_DIRECTION_BUY\x10\x01\x12#\n" +
-	"\x1fTRADE_SETTLEMENT_DIRECTION_SELL\x10\x022\xd1\x05\n" +
+	"\x1fTRADE_SETTLEMENT_DIRECTION_SELL\x10\x02*\xf6\x01\n" +
+	"\x19OtcFundsReservationStatus\x12,\n" +
+	"(OTC_FUNDS_RESERVATION_STATUS_UNSPECIFIED\x10\x00\x12)\n" +
+	"%OTC_FUNDS_RESERVATION_STATUS_RESERVED\x10\x01\x12)\n" +
+	"%OTC_FUNDS_RESERVATION_STATUS_RELEASED\x10\x02\x12*\n" +
+	"&OTC_FUNDS_RESERVATION_STATUS_COMMITTED\x10\x03\x12)\n" +
+	"%OTC_FUNDS_RESERVATION_STATUS_REFUNDED\x10\x042\xba\b\n" +
 	"\x0eBankingService\x12c\n" +
 	"\x12GetAccountByNumber\x12%.banking.v1.GetAccountByNumberRequest\x1a&.banking.v1.GetAccountByNumberResponse\x12T\n" +
 	"\rHasActiveLoan\x12 .banking.v1.HasActiveLoanRequest\x1a!.banking.v1.HasActiveLoanResponse\x12g\n" +
 	" CreatePaymentWithoutVerification\x12 .banking.v1.CreatePaymentRequest\x1a!.banking.v1.CreatePaymentResponse\x12l\n" +
 	"\x15GetAccountsByClientID\x12(.banking.v1.GetAccountsByClientIDRequest\x1a).banking.v1.GetAccountsByClientIDResponse\x12Z\n" +
 	"\x0fConvertCurrency\x12\".banking.v1.ConvertCurrencyRequest\x1a#.banking.v1.ConvertCurrencyResponse\x12o\n" +
-	"\x16ExecuteTradeSettlement\x12).banking.v1.ExecuteTradeSettlementRequest\x1a*.banking.v1.ExecuteTradeSettlementResponse\x12`\n" +
+	"\x16ExecuteTradeSettlement\x12).banking.v1.ExecuteTradeSettlementRequest\x1a*.banking.v1.ExecuteTradeSettlementResponse\x12^\n" +
+	"\x0fReserveOtcFunds\x12\".banking.v1.ReserveOtcFundsRequest\x1a'.banking.v1.OtcFundsReservationResponse\x12W\n" +
+	"\x0fReleaseOtcFunds\x12\x1b.banking.v1.OtcFundsRequest\x1a'.banking.v1.OtcFundsReservationResponse\x12V\n" +
+	"\x0eCommitOtcFunds\x12\x1b.banking.v1.OtcFundsRequest\x1a'.banking.v1.OtcFundsReservationResponse\x12V\n" +
+	"\x0eRefundOtcFunds\x12\x1b.banking.v1.OtcFundsRequest\x1a'.banking.v1.OtcFundsReservationResponse\x12`\n" +
 	"\x11CreateFundAccount\x12$.banking.v1.CreateFundAccountRequest\x1a%.banking.v1.CreateFundAccountResponseB\x12Z\x10common/pkg/pb;pbb\x06proto3"
 
 var (
@@ -1009,48 +1330,61 @@ func file_common_proto_banking_proto_rawDescGZIP() []byte {
 	return file_common_proto_banking_proto_rawDescData
 }
 
-var file_common_proto_banking_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_common_proto_banking_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_common_proto_banking_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_common_proto_banking_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_common_proto_banking_proto_goTypes = []any{
 	(TradeSettlementDirection)(0),          // 0: banking.v1.TradeSettlementDirection
-	(*GetAccountByNumberRequest)(nil),      // 1: banking.v1.GetAccountByNumberRequest
-	(*GetAccountByNumberResponse)(nil),     // 2: banking.v1.GetAccountByNumberResponse
-	(*HasActiveLoanRequest)(nil),           // 3: banking.v1.HasActiveLoanRequest
-	(*HasActiveLoanResponse)(nil),          // 4: banking.v1.HasActiveLoanResponse
-	(*CreatePaymentRequest)(nil),           // 5: banking.v1.CreatePaymentRequest
-	(*CreatePaymentResponse)(nil),          // 6: banking.v1.CreatePaymentResponse
-	(*GetAccountsByClientIDRequest)(nil),   // 7: banking.v1.GetAccountsByClientIDRequest
-	(*GetAccountsByClientIDResponse)(nil),  // 8: banking.v1.GetAccountsByClientIDResponse
-	(*AccountInfo)(nil),                    // 9: banking.v1.AccountInfo
-	(*ConvertCurrencyRequest)(nil),         // 10: banking.v1.ConvertCurrencyRequest
-	(*ConvertCurrencyResponse)(nil),        // 11: banking.v1.ConvertCurrencyResponse
-	(*ExecuteTradeSettlementRequest)(nil),  // 12: banking.v1.ExecuteTradeSettlementRequest
-	(*ExecuteTradeSettlementResponse)(nil), // 13: banking.v1.ExecuteTradeSettlementResponse
-	(*CreateFundAccountRequest)(nil),       // 14: banking.v1.CreateFundAccountRequest
-	(*CreateFundAccountResponse)(nil),      // 15: banking.v1.CreateFundAccountResponse
+	(OtcFundsReservationStatus)(0),         // 1: banking.v1.OtcFundsReservationStatus
+	(*GetAccountByNumberRequest)(nil),      // 2: banking.v1.GetAccountByNumberRequest
+	(*GetAccountByNumberResponse)(nil),     // 3: banking.v1.GetAccountByNumberResponse
+	(*HasActiveLoanRequest)(nil),           // 4: banking.v1.HasActiveLoanRequest
+	(*HasActiveLoanResponse)(nil),          // 5: banking.v1.HasActiveLoanResponse
+	(*CreatePaymentRequest)(nil),           // 6: banking.v1.CreatePaymentRequest
+	(*CreatePaymentResponse)(nil),          // 7: banking.v1.CreatePaymentResponse
+	(*GetAccountsByClientIDRequest)(nil),   // 8: banking.v1.GetAccountsByClientIDRequest
+	(*GetAccountsByClientIDResponse)(nil),  // 9: banking.v1.GetAccountsByClientIDResponse
+	(*AccountInfo)(nil),                    // 10: banking.v1.AccountInfo
+	(*ConvertCurrencyRequest)(nil),         // 11: banking.v1.ConvertCurrencyRequest
+	(*ConvertCurrencyResponse)(nil),        // 12: banking.v1.ConvertCurrencyResponse
+	(*ExecuteTradeSettlementRequest)(nil),  // 13: banking.v1.ExecuteTradeSettlementRequest
+	(*ExecuteTradeSettlementResponse)(nil), // 14: banking.v1.ExecuteTradeSettlementResponse
+	(*ReserveOtcFundsRequest)(nil),         // 15: banking.v1.ReserveOtcFundsRequest
+	(*OtcFundsRequest)(nil),                // 16: banking.v1.OtcFundsRequest
+	(*OtcFundsReservationResponse)(nil),    // 17: banking.v1.OtcFundsReservationResponse
+	(*CreateFundAccountRequest)(nil),       // 18: banking.v1.CreateFundAccountRequest
+	(*CreateFundAccountResponse)(nil),      // 19: banking.v1.CreateFundAccountResponse
 }
 var file_common_proto_banking_proto_depIdxs = []int32{
-	9,  // 0: banking.v1.GetAccountsByClientIDResponse.accounts:type_name -> banking.v1.AccountInfo
+	10, // 0: banking.v1.GetAccountsByClientIDResponse.accounts:type_name -> banking.v1.AccountInfo
 	0,  // 1: banking.v1.ExecuteTradeSettlementRequest.direction:type_name -> banking.v1.TradeSettlementDirection
-	1,  // 2: banking.v1.BankingService.GetAccountByNumber:input_type -> banking.v1.GetAccountByNumberRequest
-	3,  // 3: banking.v1.BankingService.HasActiveLoan:input_type -> banking.v1.HasActiveLoanRequest
-	5,  // 4: banking.v1.BankingService.CreatePaymentWithoutVerification:input_type -> banking.v1.CreatePaymentRequest
-	7,  // 5: banking.v1.BankingService.GetAccountsByClientID:input_type -> banking.v1.GetAccountsByClientIDRequest
-	10, // 6: banking.v1.BankingService.ConvertCurrency:input_type -> banking.v1.ConvertCurrencyRequest
-	12, // 7: banking.v1.BankingService.ExecuteTradeSettlement:input_type -> banking.v1.ExecuteTradeSettlementRequest
-	14, // 8: banking.v1.BankingService.CreateFundAccount:input_type -> banking.v1.CreateFundAccountRequest
-	2,  // 9: banking.v1.BankingService.GetAccountByNumber:output_type -> banking.v1.GetAccountByNumberResponse
-	4,  // 10: banking.v1.BankingService.HasActiveLoan:output_type -> banking.v1.HasActiveLoanResponse
-	6,  // 11: banking.v1.BankingService.CreatePaymentWithoutVerification:output_type -> banking.v1.CreatePaymentResponse
-	8,  // 12: banking.v1.BankingService.GetAccountsByClientID:output_type -> banking.v1.GetAccountsByClientIDResponse
-	11, // 13: banking.v1.BankingService.ConvertCurrency:output_type -> banking.v1.ConvertCurrencyResponse
-	13, // 14: banking.v1.BankingService.ExecuteTradeSettlement:output_type -> banking.v1.ExecuteTradeSettlementResponse
-	15, // 15: banking.v1.BankingService.CreateFundAccount:output_type -> banking.v1.CreateFundAccountResponse
-	9,  // [9:16] is the sub-list for method output_type
-	2,  // [2:9] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	1,  // 2: banking.v1.OtcFundsReservationResponse.status:type_name -> banking.v1.OtcFundsReservationStatus
+	2,  // 3: banking.v1.BankingService.GetAccountByNumber:input_type -> banking.v1.GetAccountByNumberRequest
+	4,  // 4: banking.v1.BankingService.HasActiveLoan:input_type -> banking.v1.HasActiveLoanRequest
+	6,  // 5: banking.v1.BankingService.CreatePaymentWithoutVerification:input_type -> banking.v1.CreatePaymentRequest
+	8,  // 6: banking.v1.BankingService.GetAccountsByClientID:input_type -> banking.v1.GetAccountsByClientIDRequest
+	11, // 7: banking.v1.BankingService.ConvertCurrency:input_type -> banking.v1.ConvertCurrencyRequest
+	13, // 8: banking.v1.BankingService.ExecuteTradeSettlement:input_type -> banking.v1.ExecuteTradeSettlementRequest
+	15, // 9: banking.v1.BankingService.ReserveOtcFunds:input_type -> banking.v1.ReserveOtcFundsRequest
+	16, // 10: banking.v1.BankingService.ReleaseOtcFunds:input_type -> banking.v1.OtcFundsRequest
+	16, // 11: banking.v1.BankingService.CommitOtcFunds:input_type -> banking.v1.OtcFundsRequest
+	16, // 12: banking.v1.BankingService.RefundOtcFunds:input_type -> banking.v1.OtcFundsRequest
+	18, // 13: banking.v1.BankingService.CreateFundAccount:input_type -> banking.v1.CreateFundAccountRequest
+	3,  // 14: banking.v1.BankingService.GetAccountByNumber:output_type -> banking.v1.GetAccountByNumberResponse
+	5,  // 15: banking.v1.BankingService.HasActiveLoan:output_type -> banking.v1.HasActiveLoanResponse
+	7,  // 16: banking.v1.BankingService.CreatePaymentWithoutVerification:output_type -> banking.v1.CreatePaymentResponse
+	9,  // 17: banking.v1.BankingService.GetAccountsByClientID:output_type -> banking.v1.GetAccountsByClientIDResponse
+	12, // 18: banking.v1.BankingService.ConvertCurrency:output_type -> banking.v1.ConvertCurrencyResponse
+	14, // 19: banking.v1.BankingService.ExecuteTradeSettlement:output_type -> banking.v1.ExecuteTradeSettlementResponse
+	17, // 20: banking.v1.BankingService.ReserveOtcFunds:output_type -> banking.v1.OtcFundsReservationResponse
+	17, // 21: banking.v1.BankingService.ReleaseOtcFunds:output_type -> banking.v1.OtcFundsReservationResponse
+	17, // 22: banking.v1.BankingService.CommitOtcFunds:output_type -> banking.v1.OtcFundsReservationResponse
+	17, // 23: banking.v1.BankingService.RefundOtcFunds:output_type -> banking.v1.OtcFundsReservationResponse
+	19, // 24: banking.v1.BankingService.CreateFundAccount:output_type -> banking.v1.CreateFundAccountResponse
+	14, // [14:25] is the sub-list for method output_type
+	3,  // [3:14] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_common_proto_banking_proto_init() }
@@ -1063,8 +1397,8 @@ func file_common_proto_banking_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_proto_banking_proto_rawDesc), len(file_common_proto_banking_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   15,
+			NumEnums:      2,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

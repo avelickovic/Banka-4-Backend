@@ -2,6 +2,15 @@ package model
 
 import "time"
 
+type OtcOptionContractStatus string
+
+const (
+	OtcOptionContractStatusActive    OtcOptionContractStatus = "ACTIVE"
+	OtcOptionContractStatusExercised OtcOptionContractStatus = "EXERCISED"
+	OtcOptionContractStatusExpired   OtcOptionContractStatus = "EXPIRED"
+	OtcOptionContractStatusCancelled OtcOptionContractStatus = "CANCELLED"
+)
+
 // OtcOptionContract predstavlja sklopljeni opcioni ugovor (CALL opciju)
 // koji nastaje AUTOMATSKI kada se OtcOffer prihvati.
 //
@@ -27,15 +36,17 @@ type OtcOptionContract struct {
 	Stock        Stock `gorm:"foreignKey:StockAssetID;references:AssetID"`
 
 	// Parametri ugovora — fiksirani u trenutku prihvatanja.
-	Amount         int       `gorm:"not null"`
-	StrikePrice    float64   `gorm:"not null"` // = OtcOffer.PricePerStock
-	Premium        float64   `gorm:"not null"` // već isplaćeno
-	SettlementDate time.Time `gorm:"not null"`
+	Amount              int       `gorm:"not null"`
+	StrikePriceRSD      float64   `gorm:"column:strike_price;not null"` // = OtcOffer.PricePerStockRSD
+	PremiumRSD          float64   `gorm:"column:premium;not null"`      // već isplaćeno
+	SettlementDate      time.Time `gorm:"not null"`
+	BuyerAccountNumber  string    `gorm:"not null;size:64"`
+	SellerAccountNumber string    `gorm:"not null;size:64"`
 
 	// Status izvršenja opcije. Spec scenariji:
-	//   - cena poraste -> kupac iskorišćava (IsExercised=true, kupoprodaja po SAGA)
+	//   - cena poraste -> kupac iskorišćava (status=EXERCISED, kupoprodaja po SAGA)
 	//   - cena padne   -> kupac ne iskorišćava, opcija ekspirira (gubi premiju)
-	IsExercised bool `gorm:"not null;default:false"`
+	Status      OtcOptionContractStatus `gorm:"not null;size:20;default:'ACTIVE'"`
 	ExercisedAt *time.Time
 
 	CreatedAt time.Time

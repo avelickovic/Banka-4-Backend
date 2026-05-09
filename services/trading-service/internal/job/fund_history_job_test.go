@@ -71,6 +71,12 @@ func (d *dummyOwnershipRepo) FindByUserId(ctx context.Context, userId uint, owne
 func (d *dummyOwnershipRepo) FindByID(ctx context.Context, id uint) (*model.AssetOwnership, error) {
 	return nil, nil
 }
+func (d *dummyOwnershipRepo) FindByUserAndAsset(ctx context.Context, userId uint, ownerType model.OwnerType, assetID uint) (*model.AssetOwnership, error) {
+	return nil, nil
+}
+func (d *dummyOwnershipRepo) FindByUserAndAssetForUpdate(ctx context.Context, userId uint, ownerType model.OwnerType, assetID uint) (*model.AssetOwnership, error) {
+	return nil, nil
+}
 func (d *dummyOwnershipRepo) Upsert(ctx context.Context, ownership *model.AssetOwnership) error {
 	return nil
 }

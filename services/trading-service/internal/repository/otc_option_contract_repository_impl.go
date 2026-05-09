@@ -5,7 +5,9 @@ import (
 	stderrors "errors"
 	"time"
 
+	commondb "github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/db"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
 )
@@ -19,19 +21,28 @@ func NewOtcOptionContractRepository(db *gorm.DB) OtcOptionContractRepository {
 }
 
 func (r *otcOptionContractRepositoryImpl) Create(ctx context.Context, contract *model.OtcOptionContract) error {
-	return r.db.WithContext(ctx).Create(contract).Error
+	return commondb.DBFromContext(ctx, r.db).Create(contract).Error
 }
 
 func (r *otcOptionContractRepositoryImpl) Save(ctx context.Context, contract *model.OtcOptionContract) error {
-	return r.db.WithContext(ctx).Save(contract).Error
+	return commondb.DBFromContext(ctx, r.db).Save(contract).Error
 }
 
 func (r *otcOptionContractRepositoryImpl) FindByID(ctx context.Context, id uint) (*model.OtcOptionContract, error) {
+	return r.findByID(ctx, id, false)
+}
+
+func (r *otcOptionContractRepositoryImpl) FindByIDForUpdate(ctx context.Context, id uint) (*model.OtcOptionContract, error) {
+	return r.findByID(ctx, id, true)
+}
+
+func (r *otcOptionContractRepositoryImpl) FindByOfferID(ctx context.Context, offerID uint) (*model.OtcOptionContract, error) {
 	var contract model.OtcOptionContract
-	result := r.db.WithContext(ctx).
+	result := commondb.DBFromContext(ctx, r.db).
 		Preload("Stock").
 		Preload("Stock.Asset").
-		First(&contract, id)
+		Where("otc_offer_id = ?", offerID).
+		First(&contract)
 	if stderrors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -43,7 +54,7 @@ func (r *otcOptionContractRepositoryImpl) FindByID(ctx context.Context, id uint)
 
 func (r *otcOptionContractRepositoryImpl) FindForUser(ctx context.Context, userID uint) ([]model.OtcOptionContract, error) {
 	var contracts []model.OtcOptionContract
-	err := r.db.WithContext(ctx).
+	err := commondb.DBFromContext(ctx, r.db).
 		Preload("Stock").
 		Preload("Stock.Asset").
 		Preload("Stock.Listing.Exchange").
@@ -55,8 +66,47 @@ func (r *otcOptionContractRepositoryImpl) FindForUser(ctx context.Context, userI
 
 func (r *otcOptionContractRepositoryImpl) FindActiveBySellerAndStock(ctx context.Context, sellerID, stockID uint, now time.Time) ([]model.OtcOptionContract, error) {
 	var contracts []model.OtcOptionContract
-	err := r.db.WithContext(ctx).
-		Where("seller_id = ? AND stock_asset_id = ? AND is_exercised = false AND settlement_date > ?", sellerID, stockID, now).
+	err := commondb.DBFromContext(ctx, r.db).
+		Where("seller_id = ? AND stock_asset_id = ? AND status = ? AND settlement_date > ?", sellerID, stockID, model.OtcOptionContractStatusActive, now).
 		Find(&contracts).Error
 	return contracts, err
+}
+
+func (r *otcOptionContractRepositoryImpl) FindExpiredActive(ctx context.Context, before time.Time, limit int) ([]model.OtcOptionContract, error) {
+	var contracts []model.OtcOptionContract
+	query := commondb.DBFromContext(ctx, r.db).
+		Where("status = ? AND settlement_date <= ?", model.OtcOptionContractStatusActive, before).
+		Order("settlement_date ASC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	if err := query.Find(&contracts).Error; err != nil {
+		return nil, err
+	}
+	return contracts, nil
+}
+
+func (r *otcOptionContractRepositoryImpl) findByID(ctx context.Context, id uint, forUpdate bool) (*model.OtcOptionContract, error) {
+	query := commondb.DBFromContext(ctx, r.db).
+		Preload("Stock").
+		Preload("Stock.Asset")
+
+	if forUpdate {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+
+	var contract model.OtcOptionContract
+	result := query.First(&contract, id)
+
+	if stderrors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &contract, nil
 }

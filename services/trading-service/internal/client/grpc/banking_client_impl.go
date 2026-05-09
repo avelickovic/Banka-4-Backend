@@ -92,6 +92,42 @@ func (c *BankingServiceClient) GetAccountCurrency(ctx context.Context, accountNu
 	return resp.CurrencyCode, nil
 }
 
+func (c *BankingServiceClient) ReserveOtcFunds(ctx context.Context, req *pb.ReserveOtcFundsRequest) (*pb.OtcFundsReservationResponse, error) {
+	resp, err := c.stub.ReserveOtcFunds(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("banking client ReserveOtcFunds: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (c *BankingServiceClient) ReleaseOtcFunds(ctx context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	resp, err := c.stub.ReleaseOtcFunds(ctx, &pb.OtcFundsRequest{ExecutionId: executionID})
+	if err != nil {
+		return nil, fmt.Errorf("banking client ReleaseOtcFunds: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (c *BankingServiceClient) CommitOtcFunds(ctx context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	resp, err := c.stub.CommitOtcFunds(ctx, &pb.OtcFundsRequest{ExecutionId: executionID})
+	if err != nil {
+		return nil, fmt.Errorf("banking client CommitOtcFunds: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (c *BankingServiceClient) RefundOtcFunds(ctx context.Context, executionID string) (*pb.OtcFundsReservationResponse, error) {
+	resp, err := c.stub.RefundOtcFunds(ctx, &pb.OtcFundsRequest{ExecutionId: executionID})
+	if err != nil {
+		return nil, fmt.Errorf("banking client RefundOtcFunds: %w", err)
+	}
+
+	return resp, nil
+}
+
 func (c *BankingServiceClient) CreateFundAccount(ctx context.Context, fundName string, managerID uint64) (string, error) {
 	resp, err := c.stub.CreateFundAccount(ctx, &pb.CreateFundAccountRequest{
 		FundName:  fundName,
