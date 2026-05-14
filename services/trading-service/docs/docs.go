@@ -3861,7 +3861,16 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "current_price": {
+                    "type": "number"
+                },
+                "current_price_rsd": {
+                    "type": "number"
+                },
                 "last_modified": {
+                    "type": "string"
+                },
+                "listing_currency": {
                     "type": "string"
                 },
                 "modified_by": {
