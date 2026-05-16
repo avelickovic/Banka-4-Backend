@@ -367,11 +367,11 @@ func TestGetFundDetail_Success(t *testing.T) {
 		ManagerID:           10,
 		AccountNumber:       "ACC123",
 		Positions: []model.ClientFundPosition{
-			{TotalInvestedAmount: 1500.0},
+			{TotalInvestedAmount: 2000.0},
 		},
 	}
 	bankingClient := &fakeFundBankingClient{
-		getAccountResult: &pb.GetAccountByNumberResponse{AvailableBalance: 2000},
+		getAccountResult: &pb.GetAccountByNumberResponse{AvailableBalance: 3000},
 	}
 	userClient := &fakeUserClient{}
 	fundRepo := &fakeFundRepo{
@@ -379,12 +379,16 @@ func TestGetFundDetail_Success(t *testing.T) {
 		findHoldingsResult: []model.AssetOwnership{
 			{
 				AssetID:   100,
+				UserId:    1,
+				OwnerType: model.OwnerTypeFund,
 				Amount:    10,
 				Asset:     model.Asset{Ticker: "AAPL"}, // not pointer
 				UpdatedAt: time.Now().Add(-24 * time.Hour),
 			},
 			{
 				AssetID:   101,
+				UserId:    1,
+				OwnerType: model.OwnerTypeFund,
 				Amount:    5,
 				Asset:     model.Asset{Ticker: "GOOGL"}, // not pointer
 				UpdatedAt: time.Now().Add(-48 * time.Hour),
@@ -402,7 +406,14 @@ func TestGetFundDetail_Success(t *testing.T) {
 		},
 		dailyPriceInfo: &model.ListingDailyPriceInfo{Change: 2.5, Volume: 1000},
 	}
-	svc := newTestFundServiceWithListing(fundRepo, listingRepo, bankingClient, userClient)
+	ownershipRepo := &fakeAssetOwnershipRepo{
+		ownerships: []model.AssetOwnership{
+			{AssetID: 100, Amount: 10},
+			{AssetID: 101, Amount: 5},
+		},
+	}
+	exchange := defaultExchange()
+	svc := NewInvestmentFundService(fundRepo, &fakePositionRepo{}, listingRepo, &fakeInvestmentRepo{}, &fakeRedemptionRepo{}, ownershipRepo, &fakeExchangeRepo{exchange: exchange}, &fakeStockRepo{}, &fakeOptionRepo{}, &fakeFuturesRepo{}, &fakeForexRepo{}, bankingClient, userClient, nil)
 
 	resp, err := svc.GetFundDetail(context.Background(), 1)
 	require.NoError(t, err)
@@ -411,12 +422,12 @@ func TestGetFundDetail_Success(t *testing.T) {
 	require.Equal(t, "A test fund", resp.Description)
 	require.Equal(t, 500.0, resp.MinInvestment)
 	require.Equal(t, "Manager 10", resp.Manager)
-	require.Equal(t, 2000.0, resp.LiquidAssets)
+	require.Equal(t, 3000.0, resp.LiquidAssets)
 
 	// fundValue = (10*120)+(5*110) = 1200+550=1750
 	// profit = 1750 - 1500 = 250
-	require.Equal(t, 3750.0, resp.FundValue)
-	require.Equal(t, 2250.0, resp.Profit)
+	require.Equal(t, 1750.0+3000.0, resp.FundValue)
+	require.Equal(t, 1750.0+3000.0-2000.0, resp.Profit)
 
 	require.Len(t, resp.Holdings, 2)
 	require.Equal(t, "AAPL", resp.Holdings[0].Ticker)
