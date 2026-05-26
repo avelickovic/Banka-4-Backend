@@ -207,8 +207,24 @@ func parseOrderID(c *gin.Context) (uint, error) {
 	return uint(id), nil
 }
 
+// GetMyOrders godoc
+// @Summary Get orders for the authenticated user
+// @Description Returns a paginated list of orders belonging to the authenticated client or actuary
+// @Tags orders
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param page_size query int false "Page size (default: 20, max: 100)"
+// @Param status query string false "Filter by order status"
+// @Param order_type query string false "Filter by order type"
+// @Param asset_type query string false "Filter by asset type"
+// @Param from_date query string false "Filter orders created after this date (RFC3339)"
+// @Param to_date query string false "Filter orders created before this date (RFC3339)"
+// @Success 200 {object} map[string]interface{} "data, total, page, page_size"
+// @Failure 400 {object} errors.AppError
+// @Failure 401 {object} errors.AppError
+// @Failure 403 {object} errors.AppError
+// @Router /api/orders [get]
 func (h *OrderHandler) GetMyOrders(c *gin.Context) {
-
 	authCtx := auth.GetAuthFromContext(c.Request.Context())
 	if authCtx == nil {
 		c.JSON(http.StatusUnauthorized, errors.UnauthorizedErr("not authenticated"))

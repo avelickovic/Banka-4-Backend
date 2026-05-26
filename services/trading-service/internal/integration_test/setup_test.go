@@ -697,7 +697,6 @@ func seedOrderForUser(t *testing.T, db *gorm.DB, userID uint, ownerType model.Ow
 	return order
 }
 
-
 func seedOrderWithType(t *testing.T, db *gorm.DB, userID uint, ownerType model.OwnerType, listingID uint, orderType model.OrderType, direction model.OrderDirection, status model.OrderStatus) *model.Order {
 	order := &model.Order{
 		OrderOwnerUserID: userID,
@@ -724,7 +723,6 @@ func seedOrderWithType(t *testing.T, db *gorm.DB, userID uint, ownerType model.O
 	}
 	return order
 }
-
 
 func seedOrderWithCustomDate(t *testing.T, db *gorm.DB, userID uint, ownerType model.OwnerType, listingID uint, direction model.OrderDirection, status model.OrderStatus, createdAt time.Time) *model.Order {
 	order := &model.Order{

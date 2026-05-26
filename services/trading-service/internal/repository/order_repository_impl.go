@@ -105,11 +105,15 @@ func (r *orderRepositoryImpl) FindUserOrders(ctx context.Context, userID uint, o
 	if query.OrderType != nil {
 		db = db.Where("order_type = ?", *query.OrderType)
 	}
+
 	if query.FromDate != nil {
-		db = db.Where("created_at >= ?", *query.FromDate)
+		start := query.FromDate.Truncate(24 * time.Hour)
+		db = db.Where("created_at >= ?", start)
 	}
+
 	if query.ToDate != nil {
-		db = db.Where("created_at <= ?", *query.ToDate)
+		end := query.ToDate.Truncate(24 * time.Hour).Add(24 * time.Hour)
+		db = db.Where("created_at < ?", end)
 	}
 
 	// Asset type filter requires join with listings and assets
