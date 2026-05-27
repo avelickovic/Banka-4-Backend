@@ -2655,7 +2655,7 @@ func newTestOrderServiceForMyOrders(
 	return NewOrderService(
 		orderRepo, orderTxRepo, exchangeRepo, listingRepo,
 		assetOwnershipRepo, futuresRepo, optionRepo, fundRepo,
-		userClient, bankingClient, taxRecorder,
+		userClient, bankingClient, taxRecorder, fakeAuditService(nil),
 	)
 }
 

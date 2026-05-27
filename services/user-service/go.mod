@@ -2,6 +2,8 @@ module github.com/RAF-SI-2025/Banka-4-Backend/services/user-service
 
 go 1.26
 
+replace github.com/RAF-SI-2025/Banka-4-Backend/common => ../../common
+
 require (
 	github.com/RAF-SI-2025/Banka-4-Backend/common v0.0.0-20260522172406-dc3bae7ebfd0
 	github.com/gin-contrib/cors v1.7.6

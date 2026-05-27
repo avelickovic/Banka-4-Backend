@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/audit"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/auth"
 	commonjwt "github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/jwt"
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/logging"
 	commonpermission "github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/permission"
-	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/audit"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/config"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/handler"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/user-service/internal/model"
