@@ -1393,6 +1393,37 @@ paths:
       summary: Get portfolio for an actuary/agent
       tags:
       - portfolio
+  /api/actuary/{actId}/assets/{assetOwnershipId}/dividends:
+    get:
+      description: Returns dividend payout history for a specific asset ownership
+        (position) managed by an actuary.
+      parameters:
+      - description: Actuary ID
+        in: path
+        name: actId
+        required: true
+        type: integer
+      - description: Asset Ownership ID
+        in: path
+        name: assetOwnershipId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ListDividendPayoutsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: List actuary dividend payouts for a portfolio position
+      tags:
+      - dividends
   /api/actuary/{actId}/assets/{ownershipId}/publish:
     patch:
       consumes:
@@ -1649,6 +1680,37 @@ paths:
       summary: Get portfolio for a client
       tags:
       - portfolio
+  /api/client/{clientId}/assets/{assetOwnershipId}/dividends:
+    get:
+      description: Returns dividend payout history for a specific asset ownership
+        (position) belonging to a client.
+      parameters:
+      - description: Client ID
+        in: path
+        name: clientId
+        required: true
+        type: integer
+      - description: Asset Ownership ID
+        in: path
+        name: assetOwnershipId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ListDividendPayoutsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: List client dividend payouts for a portfolio position
+      tags:
+      - dividends
   /api/client/{clientId}/assets/{ownershipId}/publish:
     patch:
       consumes:

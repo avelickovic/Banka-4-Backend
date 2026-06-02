@@ -248,6 +248,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/actuary/{actId}/assets/{assetOwnershipId}/dividends": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns dividend payout history for a specific asset ownership (position) managed by an actuary.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dividends"
+                ],
+                "summary": "List actuary dividend payouts for a portfolio position",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Actuary ID",
+                        "name": "actId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Asset Ownership ID",
+                        "name": "assetOwnershipId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListDividendPayoutsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/actuary/{actId}/assets/{ownershipId}/publish": {
             "patch": {
                 "security": [
@@ -577,6 +624,53 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/client/{clientId}/assets/{assetOwnershipId}/dividends": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns dividend payout history for a specific asset ownership (position) belonging to a client.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dividends"
+                ],
+                "summary": "List client dividend payouts for a portfolio position",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Asset Ownership ID",
+                        "name": "assetOwnershipId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListDividendPayoutsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/errors.AppError"
                         }
