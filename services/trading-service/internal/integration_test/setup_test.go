@@ -193,8 +193,7 @@ func (c *fakeUserClient) IncrementUsedLimit(_ context.Context, _ uint64, _ float
 
 type fakeMailer struct{}
 
-func (f *fakeMailer) SendEmail(
-	ctx context.Context,
+func (f *fakeMailer) Send(
 	to string,
 	subject string,
 	body string,
