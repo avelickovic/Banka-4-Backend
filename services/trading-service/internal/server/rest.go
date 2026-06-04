@@ -46,7 +46,7 @@ func NewServer(
 	otcNegotiationHistoryHandler *handler.OtcNegotiationHistoryHandler,
 ) {
 
-		r := gin.New()
+	r := gin.New()
 
 	InitRouter(r, cfg)
 
@@ -78,7 +78,7 @@ func InitRouter(r *gin.Engine, cfg *config.Configuration) {
 	validator.RegisterValidators()
 }
 
-func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, taxHandler *handler.TaxHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, portfolioHandler *handler.PortfolioHandler, listingHandler *handler.ListingHandler, otcHandler *handler.OTCHandler, otcOfferHandler *handler.OtcOfferHandler, fundHandler *handler.InvestmentFundHandler, watchlistHandler *handler.WatchlistHandler, otcNegotiationHistoryHandler *handler.OtcNegotiationHistoryHandler,recurringOrderHandler *handler.RecurringOrderHandler,
+func SetupRoutes(r *gin.Engine, healthHandler *handler.HealthHandler, taxHandler *handler.TaxHandler, exchangeHandler *handler.ExchangeHandler, orderHandler *handler.OrderHandler, portfolioHandler *handler.PortfolioHandler, listingHandler *handler.ListingHandler, otcHandler *handler.OTCHandler, otcOfferHandler *handler.OtcOfferHandler, fundHandler *handler.InvestmentFundHandler, watchlistHandler *handler.WatchlistHandler, otcNegotiationHistoryHandler *handler.OtcNegotiationHistoryHandler, recurringOrderHandler *handler.RecurringOrderHandler,
 	dividendHandler *handler.DividendHandler, verifier auth.TokenVerifier, permProvider auth.PermissionProvider, userClient client.UserServiceClient) {
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
