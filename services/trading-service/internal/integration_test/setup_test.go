@@ -80,6 +80,7 @@ func TestMain(m *testing.M) {
 		&model.TaxCollection{},
 		&model.OtcOffer{},
 		&model.OtcOptionContract{},
+		&model.OtcNegotiationHistory{},
 		&model.OtcShareReservation{},
 		&model.OtcExecutionSaga{},
 		&model.InvestmentFund{},
@@ -368,8 +369,11 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 	taxSvc := service.NewTaxService(taxRepo, bankingClient, cfg, auditSvc)
 	otcSvc := service.NewOTCService(assetOwnershipRepo, listingRepo, userClient)
 	otcProcessingSvc := service.NewOtcDealProcessingService(otcOfferRepo, otcContractRepo, otcShareReservationRepo, otcExecutionRepo, assetOwnershipRepo, txManager, bankingClient)
+	otcHistoryRepo := repository.NewOtcNegotiationHistoryRepository(db)
+	otcHistoryService := service.NewOtcNegotiationHistoryService(otcOfferRepo, otcHistoryRepo)
+	otcHistoryHandler := handler.NewOtcNegotiationHistoryHandler(otcHistoryService)
 	otcOfferSvc := service.NewOtcOfferService(otcOfferRepo, otcContractRepo, assetOwnershipRepo, stockRepo, bankingClient,
-		userClient, otcProcessingSvc)
+		userClient, otcProcessingSvc, otcHistoryService)
 
 	healthHandler := handler.NewHealthHandler()
 	exchangeHandler := handler.NewExchangeHandler(exchangeSvc)
@@ -392,7 +396,7 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 
 	r := gin.New()
 	server.InitRouter(r, cfg)
-	server.SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, otcHandler, otcOfferHandler, fundHandler, watchlistHandler, recurringOrderHandler, dividendHandler, verifier, permProvider, userClient)
+	server.SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, otcHandler, otcOfferHandler, fundHandler, watchlistHandler, otcHistoryHandler, recurringOrderHandler, dividendHandler, verifier, permProvider, userClient)
 
 	return r, userClient
 }
