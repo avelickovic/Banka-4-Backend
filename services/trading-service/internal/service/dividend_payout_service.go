@@ -225,10 +225,6 @@ func (s *DividendPayoutService) payFundOwner(
 		return nil
 	}
 
-	if s.fundRepo == nil {
-		return fmt.Errorf("fund repository not configured")
-	}
-
 	fund, err := s.fundRepo.FindByID(ctx, ownership.UserId)
 	if err != nil {
 		return fmt.Errorf("fund lookup: %w", err)
@@ -330,9 +326,6 @@ func (s *DividendPayoutService) payFundOwner(
 
 	for _, pos := range positions {
 
-		if pos.OwnerType == model.OwnerTypeBank {
-			continue
-		}
 		clientUnits := unitsFromPosition(pos)
 		if clientUnits <= 0 {
 			continue
@@ -409,9 +402,6 @@ func (s *DividendPayoutService) resolveTargetAccount(
 ) (accountNumber string, currency string, err error) {
 	// For fund-owned assets, the target is the fund's own bank account
 	if ownership.OwnerType == model.OwnerTypeFund {
-		if s.fundRepo == nil {
-			return "", "", commonerrors.InternalErr(fmt.Errorf("fund repository not available"))
-		}
 		fund, err := s.fundRepo.FindByID(ctx, ownership.UserId)
 		if err != nil {
 			return "", "", fmt.Errorf("resolve fund account: %w", err)
