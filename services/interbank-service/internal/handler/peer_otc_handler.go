@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 
@@ -218,46 +217,6 @@ func (h *PeerOtcHandler) AcceptNegotiation(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract)
-}
-
-func (h *PeerOtcHandler) ReserveContractShares(c *gin.Context) {
-	h.handleContractShareStep(c, h.service.ReserveSharesFromPeer)
-}
-
-func (h *PeerOtcHandler) ConsumeContractShares(c *gin.Context) {
-	h.handleContractShareStep(c, h.service.ConsumeSharesFromPeer)
-}
-
-func (h *PeerOtcHandler) ReleaseContractShares(c *gin.Context) {
-	h.handleContractShareStep(c, h.service.ReleaseSharesFromPeer)
-}
-
-func (h *PeerOtcHandler) handleContractShareStep(
-	c *gin.Context,
-	fn func(ctx context.Context, senderRouting, authorityRouting int, id string) error,
-) {
-	senderRouting, ok := senderRoutingFromContext(c)
-	if !ok {
-		return
-	}
-
-	rn, ok := parseRoutingNumber(c)
-	if !ok {
-		return
-	}
-
-	id := c.Param("id")
-	if id == "" {
-		_ = c.Error(errors.BadRequestErr("id is required"))
-		return
-	}
-
-	if err := fn(c.Request.Context(), senderRouting, rn, id); err != nil {
-		_ = c.Error(err)
-		return
-	}
-
-	c.Status(http.StatusNoContent)
 }
 
 // PublicStock godoc

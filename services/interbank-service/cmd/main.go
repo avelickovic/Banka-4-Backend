@@ -65,7 +65,6 @@ func main() {
 			repository.NewPreparedTransactionRepository,
 			repository.NewPeerNegotiationRepository,
 			repository.NewPeerContractRepository,
-			repository.NewPeerContractExerciseRepository,
 
 			service.NewMessageProcessor,
 			service.NewPeerOtcService,
@@ -87,7 +86,6 @@ func main() {
 				&model.PreparedTransaction{},
 				&model.PeerNegotiation{},
 				&model.PeerContract{},
-				&model.PeerContractExercise{},
 			)
 		}),
 		fx.Invoke(server.NewServer),

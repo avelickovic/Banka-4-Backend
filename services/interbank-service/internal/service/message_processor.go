@@ -31,6 +31,7 @@ type preparedItem struct {
 type MessageProcessor struct {
 	inbound      repository.InboundMessageRepository
 	prepared     repository.PreparedTransactionRepository
+	outboundRepo repository.OutboundMessageRepository
 	txManager    repository.TransactionManager
 	peers        *PeerResolver
 	banking      client.BankingClient
@@ -42,6 +43,7 @@ type MessageProcessor struct {
 func NewMessageProcessor(
 	inbound repository.InboundMessageRepository,
 	prepared repository.PreparedTransactionRepository,
+	outboundRepo repository.OutboundMessageRepository,
 	txManager repository.TransactionManager,
 	peers *PeerResolver,
 	banking client.BankingClient,
@@ -52,6 +54,7 @@ func NewMessageProcessor(
 	return &MessageProcessor{
 		inbound:      inbound,
 		prepared:     prepared,
+		outboundRepo: outboundRepo,
 		txManager:    txManager,
 		peers:        peers,
 		banking:      banking,
@@ -118,31 +121,31 @@ func (p *MessageProcessor) PrepareLocalTransaction(ctx context.Context, tx *dto.
 			return err
 		}
 
-		var preparedItem []preparedItem
+		var prepared []preparedItem
 		for i := range tx.Postings {
 			if !p.isLocalPosting(tx.Postings[i]) {
 				continue
 			}
 			item, reason, err := p.preparePosting(ctx, tx, i)
 			if err != nil {
-				p.rollbackEffects(ctx, preparedItem)
+				p.rollbackEffects(ctx, prepared)
 				statusCode = http.StatusOK
 				vote = noVote(reason, &tx.Postings[i])
 				return nil
 			}
 			if item != nil {
-				preparedItem = append(preparedItem, *item)
+				prepared = append(prepared, *item)
 			}
 		}
 
-		prepared := &model.PreparedTransaction{
+		rec := &model.PreparedTransaction{
 			RoutingNumber: tx.TransactionID.RoutingNumber,
 			ID:            tx.TransactionID.ID,
 			Status:        model.PreparedTransactionPrepared,
 			RequestBody:   body,
 		}
-		if err := p.prepared.Create(ctx, prepared); err != nil {
-			p.rollbackEffects(ctx, preparedItem)
+		if err := p.prepared.Create(ctx, rec); err != nil {
+			p.rollbackEffects(ctx, prepared)
 			statusCode = http.StatusInternalServerError
 			vote = dto.TransactionVote{}
 			return err
@@ -248,8 +251,7 @@ func (p *MessageProcessor) processInbound(
 	}
 	if existing != nil {
 		if existing.ResponseStatus == http.StatusAccepted {
-			// 202 means the previous attempt was logged but unfinished; retrying
-			// must re-enter processing so the response can advance to 200/204.
+			// 202 means the previous attempt was unfinished; retry to advance.
 		} else {
 			var cached any
 			if len(existing.ResponseBody) > 0 {
@@ -307,40 +309,99 @@ func (p *MessageProcessor) processInbound(
 	return statusCode, body, nil
 }
 
+// ---------------------------------------------------------------------------
+// preparePosting dispatches by asset type.
+// ---------------------------------------------------------------------------
+
 func (p *MessageProcessor) preparePosting(ctx context.Context, tx *dto.Transaction, index int) (*preparedItem, dto.NoVoteReasonKind, error) {
 	posting := tx.Postings[index]
 
 	switch posting.Asset.Type {
 	case dto.AssetMonas:
+		return p.prepareMonasPosting(ctx, tx, index)
+	case dto.AssetOption:
+		return p.prepareOptionPosting(ctx, tx, index)
+	case dto.AssetStock:
+		return p.prepareStockPosting(ctx, tx, index)
+	default:
+		return nil, dto.ReasonUnacceptableAsset, fmt.Errorf("unsupported asset %s", posting.Asset.Type)
+	}
+}
+
+// prepareMonasPosting handles MONAS for ACCOUNT, PERSON, and OPTION account types.
+func (p *MessageProcessor) prepareMonasPosting(ctx context.Context, tx *dto.Transaction, index int) (*preparedItem, dto.NoVoteReasonKind, error) {
+	posting := tx.Postings[index]
+	currency, ok := monetaryCurrency(posting.Asset)
+	if !ok {
+		return nil, dto.ReasonUnacceptableAsset, fmt.Errorf("invalid MONAS asset")
+	}
+	pid := postingID(tx, index)
+
+	switch posting.Account.Type {
+	case dto.TxAccountAccount:
 		isValid, accountNumber := p.localCashAccount(posting.Account)
 		if !isValid {
 			return nil, dto.ReasonNoSuchAccount, fmt.Errorf("invalid local cash account")
 		}
-		currency, ok := monetaryCurrency(posting.Asset)
-		if !ok {
-			return nil, dto.ReasonUnacceptableAsset, fmt.Errorf("invalid MONAS asset")
-		}
-		postingID := postingID(tx, index)
 		_, err := p.banking.PrepareInterbankCashPosting(ctx, &pb.PrepareInterbankCashPostingRequest{
-			PostingId:     postingID,
+			PostingId:     pid,
 			AccountNumber: accountNumber,
-			ClientId:      uint64(0), // this is for when we dont have account number, not needed here
 			CurrencyCode:  currency,
 			Amount:        posting.Amount,
 		})
 		if err != nil {
 			return nil, cashNoVoteReason(err), err
 		}
-		return &preparedItem{kind: "cash", id: postingID}, "", nil
+		return &preparedItem{kind: "cash", id: pid}, "", nil
 
-	case dto.AssetOption:
-		return p.prepareOptionPosting(ctx, tx, index)
+	case dto.TxAccountPerson:
+		isValid, clientLocalID := p.localPersonAccount(posting.Account)
+		if !isValid {
+			return nil, dto.ReasonNoSuchAccount, fmt.Errorf("invalid person account for cash")
+		}
+		_, err := p.banking.PrepareInterbankCashPosting(ctx, &pb.PrepareInterbankCashPostingRequest{
+			PostingId:    pid,
+			ClientId:     uint64(clientLocalID),
+			CurrencyCode: currency,
+			Amount:       posting.Amount,
+		})
+		if err != nil {
+			return nil, cashNoVoteReason(err), err
+		}
+		return &preparedItem{kind: "cash", id: pid}, "", nil
 
-	default:
-		return nil, dto.ReasonUnacceptableAsset, fmt.Errorf("unsupported asset %s", posting.Asset.Type)
+	case dto.TxAccountOption:
+		isValid, negotiationID := p.localOptionAccount(posting.Account)
+		if !isValid {
+			return nil, dto.ReasonNoSuchAccount, fmt.Errorf("invalid option account for cash")
+		}
+		contract, err := p.contracts.FindByID(ctx, negotiationID.RoutingNumber, negotiationID.ID)
+		if err != nil {
+			return nil, dto.ReasonOptionNegotiationNotFound, err
+		}
+		if contract == nil {
+			return nil, dto.ReasonOptionNegotiationNotFound, fmt.Errorf("option contract not found")
+		}
+		sellerID, parseErr := strconv.ParseUint(contract.SellerID, 10, 64)
+		if parseErr != nil || sellerID == 0 {
+			return nil, dto.ReasonNoSuchAccount, fmt.Errorf("invalid seller id on contract")
+		}
+		_, err = p.banking.PrepareInterbankCashPosting(ctx, &pb.PrepareInterbankCashPostingRequest{
+			PostingId:    pid,
+			ClientId:     sellerID,
+			CurrencyCode: currency,
+			Amount:       posting.Amount,
+		})
+		if err != nil {
+			return nil, cashNoVoteReason(err), err
+		}
+		return &preparedItem{kind: "cash", id: pid}, "", nil
 	}
+
+	return nil, dto.ReasonNoSuchAccount, fmt.Errorf("unsupported account type for MONAS")
 }
 
+// prepareOptionPosting handles OPTION asset (accept TX).
 func (p *MessageProcessor) prepareOptionPosting(ctx context.Context, tx *dto.Transaction, index int) (*preparedItem, dto.NoVoteReasonKind, error) {
 	posting := tx.Postings[index]
 	if math.Abs(math.Abs(posting.Amount)-1) > txBalanceEpsilon {
@@ -350,15 +411,17 @@ func (p *MessageProcessor) prepareOptionPosting(ctx context.Context, tx *dto.Tra
 	if !isValid {
 		return nil, dto.ReasonNoSuchAccount, fmt.Errorf("invalid option account")
 	}
-	if posting.Amount > 0 { //no preparation needed
+	if posting.Amount > 0 {
+		// Buyer CREDIT — no reservation needed.
 		return nil, "", nil
 	}
 
+	// Seller DEBIT — reserve shares.
 	option, ok := optionDescription(posting.Asset)
 	if !ok {
 		return nil, dto.ReasonUnacceptableAsset, fmt.Errorf("invalid OPTION asset")
 	}
-	if option.NegotiationID.RoutingNumber != p.peers.OurRoutingNumber() { // we are sellers, id is ours
+	if option.NegotiationID.RoutingNumber != p.peers.OurRoutingNumber() {
 		return nil, dto.ReasonUnacceptableAsset, fmt.Errorf("routing number mismatch")
 	}
 	negotiation, err := p.negotiations.FindByID(ctx, option.NegotiationID.ID)
@@ -380,49 +443,264 @@ func (p *MessageProcessor) prepareOptionPosting(ctx context.Context, tx *dto.Tra
 	return &preparedItem{kind: "option", id: fmt.Sprintf("%d:%s", option.NegotiationID.RoutingNumber, option.NegotiationID.ID)}, "", nil
 }
 
+// prepareStockPosting handles STOCK asset (exercise TX).
+func (p *MessageProcessor) prepareStockPosting(ctx context.Context, tx *dto.Transaction, index int) (*preparedItem, dto.NoVoteReasonKind, error) {
+	posting := tx.Postings[index]
+
+	if posting.Amount < 0 {
+		// Seller DEBIT via OPTION account: validate contract is still active.
+		isValid, negotiationID := p.localOptionAccount(posting.Account)
+		if !isValid {
+			return nil, dto.ReasonNoSuchAccount, fmt.Errorf("invalid option account for stock debit")
+		}
+		contract, err := p.contracts.FindByID(ctx, negotiationID.RoutingNumber, negotiationID.ID)
+		if err != nil {
+			return nil, dto.ReasonOptionNegotiationNotFound, err
+		}
+		if contract == nil {
+			return nil, dto.ReasonOptionNegotiationNotFound, fmt.Errorf("option contract not found")
+		}
+		if contract.Status != model.PeerContractActive {
+			return nil, dto.ReasonOptionUsedOrExpired, fmt.Errorf("option contract is not active")
+		}
+		// Shares are already reserved by the accept TX — no new reservation.
+		return nil, "", nil
+	}
+
+	// Buyer CREDIT via PERSON account — no preparation needed.
+	return nil, "", nil
+}
+
+// ---------------------------------------------------------------------------
+// commitPosting dispatches by asset type.
+// ---------------------------------------------------------------------------
+
 func (p *MessageProcessor) commitPosting(ctx context.Context, tx *dto.Transaction, index int) error {
 	posting := tx.Postings[index]
+
 	switch posting.Asset.Type {
 	case dto.AssetMonas:
-		isValid, _ := p.localCashAccount(posting.Account)
+		if p.isLocalMonasAccount(posting.Account) {
+			_, err := p.banking.CommitInterbankCashPosting(ctx, postingID(tx, index))
+			return err
+		}
+		return nil
+
+	case dto.AssetOption:
+		return p.commitOptionPosting(ctx, tx, index)
+
+	case dto.AssetStock:
+		return p.commitStockPosting(ctx, tx, index)
+	}
+	return nil
+}
+
+// commitOptionPosting creates the PeerContract when the accept TX is committed.
+func (p *MessageProcessor) commitOptionPosting(ctx context.Context, tx *dto.Transaction, index int) error {
+	posting := tx.Postings[index]
+	option, ok := optionDescription(posting.Asset)
+	if !ok {
+		return nil
+	}
+
+	if posting.Amount < 0 {
+		// Seller DEBIT (PERSON account): create authoritative contract on seller's bank.
+		isValid, _ := p.localPersonAccount(posting.Account)
 		if !isValid {
 			return nil
 		}
-		_, err := p.banking.CommitInterbankCashPosting(ctx, postingID(tx, index))
-		return err
-	case dto.AssetOption:
-		option, ok := optionDescription(posting.Asset)
-		if !ok || posting.Amount > 0 {
-			return nil
+
+		negotiation, err := p.negotiations.FindByID(ctx, option.NegotiationID.ID)
+		if err != nil || negotiation == nil {
+			return err
 		}
-		_, err := p.trading.ConsumePeerOtcShares(ctx,
-			fmt.Sprintf("%d:%s", option.NegotiationID.RoutingNumber, option.NegotiationID.ID))
-		return err
-	default:
+
+		// Find buyer from the OPTION CREDIT posting.
+		var buyerRouting int
+		var buyerID string
+		for j := range tx.Postings {
+			p2 := tx.Postings[j]
+			if p2.Asset.Type == dto.AssetOption && p2.Amount > 0 && p2.Account.Type == dto.TxAccountPerson && p2.Account.ID != nil {
+				buyerRouting = p2.Account.ID.RoutingNumber
+				buyerID = p2.Account.ID.ID
+				break
+			}
+		}
+
+		contract := &model.PeerContract{
+			AuthorityRoutingNumber: p.peers.OurRoutingNumber(),
+			ID:                     option.NegotiationID.ID,
+			NegotiationID:          option.NegotiationID.ID,
+			BuyerRoutingNumber:     buyerRouting,
+			BuyerID:                buyerID,
+			SellerRoutingNumber:    negotiation.SellerRoutingNumber,
+			SellerID:               negotiation.SellerID,
+			Ticker:                 negotiation.Ticker,
+			Amount:                 negotiation.Amount,
+			StrikePrice:            negotiation.PricePerStock,
+			StrikeCurrency:         negotiation.PriceCurrency,
+			Premium:                negotiation.Premium,
+			PremiumCurrency:        negotiation.PremiumCurrency,
+			SettlementDate:         negotiation.SettlementDate,
+			Status:                 model.PeerContractActive,
+			IsAuthoritative:        true,
+		}
+		if err := p.contracts.Create(ctx, contract); err != nil {
+			return err
+		}
+
+		if negotiation.Status == model.PeerNegotiationOngoing {
+			negotiation.Status = model.PeerNegotiationAccepted
+			_ = p.negotiations.Update(ctx, negotiation)
+		}
 		return nil
 	}
+
+	// Buyer CREDIT (PERSON account): create mirror contract on buyer's bank.
+	isValid, buyerLocalID := p.localPersonAccount(posting.Account)
+	if !isValid {
+		return nil
+	}
+
+	// Find seller from the OPTION DEBIT posting.
+	var sellerRouting int
+	var sellerID string
+	for j := range tx.Postings {
+		p2 := tx.Postings[j]
+		if p2.Asset.Type == dto.AssetOption && p2.Amount < 0 && p2.Account.Type == dto.TxAccountPerson && p2.Account.ID != nil {
+			sellerRouting = p2.Account.ID.RoutingNumber
+			sellerID = p2.Account.ID.ID
+			break
+		}
+	}
+
+	// Extract premium amount and currency from the MONAS ACCOUNT posting.
+	var premium float64
+	var premiumCurrency string
+	for j := range tx.Postings {
+		p2 := tx.Postings[j]
+		if p2.Asset.Type == dto.AssetMonas && p2.Account.Type == dto.TxAccountAccount {
+			premium = math.Abs(p2.Amount)
+			premiumCurrency, _ = monetaryCurrency(p2.Asset)
+			break
+		}
+	}
+
+	contract := &model.PeerContract{
+		AuthorityRoutingNumber: option.NegotiationID.RoutingNumber,
+		ID:                     option.NegotiationID.ID,
+		NegotiationID:          option.NegotiationID.ID,
+		BuyerRoutingNumber:     p.peers.OurRoutingNumber(),
+		BuyerID:                strconv.FormatUint(uint64(buyerLocalID), 10),
+		SellerRoutingNumber:    sellerRouting,
+		SellerID:               sellerID,
+		Ticker:                 option.Stock.Ticker,
+		Amount:                 int(option.Amount),
+		StrikePrice:            option.PricePerUnit.Amount,
+		StrikeCurrency:         string(option.PricePerUnit.Currency),
+		Premium:                premium,
+		PremiumCurrency:        premiumCurrency,
+		SettlementDate:         string(option.SettlementDate),
+		Status:                 model.PeerContractActive,
+		IsAuthoritative:        false,
+	}
+	if err := p.contracts.Create(ctx, contract); err != nil {
+		return err
+	}
+	return nil
 }
+
+// commitStockPosting handles STOCK asset commit for both seller and buyer.
+func (p *MessageProcessor) commitStockPosting(ctx context.Context, tx *dto.Transaction, index int) error {
+	posting := tx.Postings[index]
+	stock, ok := stockDescription(posting.Asset)
+	if !ok {
+		return nil
+	}
+
+	if posting.Amount < 0 {
+		// Seller DEBIT via OPTION account: consume reservation and mark EXERCISED.
+		isValid, negotiationID := p.localOptionAccount(posting.Account)
+		if !isValid {
+			return nil
+		}
+		contract, err := p.contracts.FindByID(ctx, negotiationID.RoutingNumber, negotiationID.ID)
+		if err != nil || contract == nil {
+			return err
+		}
+		contractKey := fmt.Sprintf("%d:%s", contract.AuthorityRoutingNumber, contract.ID)
+		if _, err := p.trading.ConsumePeerOtcShares(ctx, contractKey); err != nil {
+			return err
+		}
+		now := time.Now()
+		contract.Status = model.PeerContractExercised
+		contract.ExercisedAt = &now
+		return p.contracts.Update(ctx, contract)
+	}
+
+	// Buyer CREDIT via PERSON account: add ownership and mark EXERCISED.
+	isValid, buyerLocalID := p.localPersonAccount(posting.Account)
+	if !isValid {
+		return nil
+	}
+
+	// Find negotiation ID from the paired STOCK DEBIT (OPTION account) posting.
+	var negotiationID dto.ForeignBankId
+	for j := range tx.Postings {
+		p2 := tx.Postings[j]
+		if p2.Asset.Type == dto.AssetStock && p2.Amount < 0 && p2.Account.Type == dto.TxAccountOption && p2.Account.ID != nil {
+			negotiationID = *p2.Account.ID
+			break
+		}
+	}
+	contract, err := p.contracts.FindByID(ctx, negotiationID.RoutingNumber, negotiationID.ID)
+	if err != nil || contract == nil {
+		return err
+	}
+	contractKey := fmt.Sprintf("%d:%s", contract.AuthorityRoutingNumber, contract.ID)
+	if _, err := p.trading.CreditPeerOtcShares(ctx, &pb.CreditPeerOtcSharesRequest{
+		ContractId:      contractKey,
+		BuyerId:         uint64(buyerLocalID),
+		Ticker:          stock.Ticker,
+		Amount:          posting.Amount,
+		PricePerUnitRsd: contract.StrikePrice,
+	}); err != nil {
+		return err
+	}
+	now := time.Now()
+	contract.Status = model.PeerContractExercised
+	contract.ExercisedAt = &now
+	return p.contracts.Update(ctx, contract)
+}
+
+// ---------------------------------------------------------------------------
+// rollbackPosting dispatches by asset type.
+// ---------------------------------------------------------------------------
 
 func (p *MessageProcessor) rollbackPosting(ctx context.Context, tx *dto.Transaction, index int) error {
 	posting := tx.Postings[index]
+
 	switch posting.Asset.Type {
 	case dto.AssetMonas:
-		isValid, account := p.localCashAccount(posting.Account)
-		if !isValid || account == "" {
-			return fmt.Errorf("invalid account")
+		if p.isLocalMonasAccount(posting.Account) {
+			_, err := p.banking.RollbackInterbankCashPosting(ctx, postingID(tx, index))
+			return err
 		}
-		_, err := p.banking.RollbackInterbankCashPosting(ctx, postingID(tx, index))
-		return err
+		return nil
+
 	case dto.AssetOption:
 		option, ok := optionDescription(posting.Asset)
 		if !ok || option.NegotiationID.RoutingNumber != p.peers.OurRoutingNumber() || posting.Amount > 0 {
-			return fmt.Errorf("invalid option")
+			return nil
 		}
 		_, err := p.trading.ReleasePeerOtcShares(ctx, fmt.Sprintf("%d:%s", option.NegotiationID.RoutingNumber, option.NegotiationID.ID))
 		return err
-	default:
-		return fmt.Errorf("posting not recognized")
+
+	case dto.AssetStock:
+		// No reservation was made in prepare for STOCK postings — nothing to undo.
+		return nil
 	}
+	return nil
 }
 
 func (p *MessageProcessor) rollbackEffects(ctx context.Context, effects []preparedItem) {
@@ -435,6 +713,10 @@ func (p *MessageProcessor) rollbackEffects(ctx context.Context, effects []prepar
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 func (p *MessageProcessor) loadStoredTransaction(ctx context.Context, txID dto.ForeignBankId) (*model.PreparedTransaction, *dto.Transaction, error) {
 	stored, err := p.prepared.FindByID(ctx, txID.RoutingNumber, txID.ID)
@@ -486,18 +768,29 @@ func (p *MessageProcessor) isLocalPosting(posting dto.Posting) bool {
 	}
 }
 
-func (p *MessageProcessor) localCashAccount(account dto.TxAccount) (bool, string) {
+// isLocalMonasAccount returns true if the account is any locally-owned type.
+func (p *MessageProcessor) isLocalMonasAccount(account dto.TxAccount) bool {
 	switch account.Type {
 	case dto.TxAccountAccount:
-		if account.Num == nil || strings.TrimSpace(*account.Num) == "" {
-			return false, ""
-		}
-		num := strings.TrimSpace(*account.Num)
-		prefix := fmt.Sprintf("%03d", p.peers.OurRoutingNumber())
-		return strings.HasPrefix(num, prefix), num
-	default:
+		isValid, _ := p.localCashAccount(account)
+		return isValid
+	case dto.TxAccountPerson:
+		isValid, _ := p.localPersonAccount(account)
+		return isValid
+	case dto.TxAccountOption:
+		isValid, _ := p.localOptionAccount(account)
+		return isValid
+	}
+	return false
+}
+
+func (p *MessageProcessor) localCashAccount(account dto.TxAccount) (bool, string) {
+	if account.Type != dto.TxAccountAccount || account.Num == nil || strings.TrimSpace(*account.Num) == "" {
 		return false, ""
 	}
+	num := strings.TrimSpace(*account.Num)
+	prefix := fmt.Sprintf("%03d", p.peers.OurRoutingNumber())
+	return strings.HasPrefix(num, prefix), num
 }
 
 func (p *MessageProcessor) localPersonAccount(account dto.TxAccount) (bool, uint) {
@@ -512,6 +805,16 @@ func (p *MessageProcessor) localPersonAccount(account dto.TxAccount) (bool, uint
 		return false, 0
 	}
 	return true, uint(id)
+}
+
+func (p *MessageProcessor) localOptionAccount(account dto.TxAccount) (bool, dto.ForeignBankId) {
+	if account.Type != dto.TxAccountOption || account.ID == nil {
+		return false, dto.ForeignBankId{}
+	}
+	if account.ID.RoutingNumber != p.peers.OurRoutingNumber() {
+		return false, dto.ForeignBankId{}
+	}
+	return true, *account.ID
 }
 
 func monetaryCurrency(asset dto.Asset) (string, bool) {
@@ -537,6 +840,21 @@ func optionDescription(asset dto.Asset) (dto.OptionDescription, bool) {
 	return option, option.NegotiationID.ID != "" && option.Stock.Ticker != "" && option.Amount > 0
 }
 
+func stockDescription(asset dto.Asset) (dto.StockDescription, bool) {
+	var desc dto.StockDescription
+	if asset.Type != dto.AssetStock {
+		return desc, false
+	}
+	raw, err := json.Marshal(asset.Body)
+	if err != nil {
+		return desc, false
+	}
+	if err := json.Unmarshal(raw, &desc); err != nil {
+		return desc, false
+	}
+	return desc, desc.Ticker != ""
+}
+
 func balanceKey(asset dto.Asset) (string, bool) {
 	switch asset.Type {
 	case dto.AssetMonas:
@@ -548,6 +866,9 @@ func balanceKey(asset dto.Asset) (string, bool) {
 			return "", false
 		}
 		return fmt.Sprintf("OPTION:%d:%s", option.NegotiationID.RoutingNumber, option.NegotiationID.ID), true
+	case dto.AssetStock:
+		desc, ok := stockDescription(asset)
+		return "STOCK:" + desc.Ticker, ok
 	default:
 		return "", false
 	}
@@ -577,4 +898,120 @@ func cashNoVoteReason(err error) dto.NoVoteReasonKind {
 
 func noVote(reason dto.NoVoteReasonKind, posting *dto.Posting) dto.TransactionVote {
 	return dto.TransactionVote{Vote: dto.VoteNo, Reasons: []dto.NoVoteReason{{Reason: reason, Posting: posting}}}
+}
+
+// ---------------------------------------------------------------------------
+// Atomic outbox methods for OTC 2PC
+// ---------------------------------------------------------------------------
+
+// PrepareAndEnqueueNewTx prepares the local transaction and, if the local
+// vote is YES and the peer is remote, enqueues a NEW_TX outbox row within
+// the same DB transaction. The returned OutboundMessage (may be nil for
+// same-bank or NO vote) lets the caller mark it SENT after a successful
+// optimistic sync send.
+func (p *MessageProcessor) PrepareAndEnqueueNewTx(
+	ctx context.Context,
+	tx *dto.Transaction,
+	peerRouting int,
+	idempotenceKey string,
+) (int, dto.TransactionVote, *model.OutboundMessage, error) {
+	var statusCode int
+	var vote dto.TransactionVote
+	var outMsg *model.OutboundMessage
+
+	err := p.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		var err error
+		statusCode, vote, err = p.PrepareLocalTransaction(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if vote.Vote != dto.VoteYes || peerRouting == p.peers.OurRoutingNumber() {
+			return nil
+		}
+		payload, err := json.Marshal(dto.NewTxMessage{
+			IdempotenceKey: dto.IdempotenceKey{RoutingNumber: p.peers.OurRoutingNumber(), LocallyGeneratedKey: idempotenceKey},
+			MessageType:    dto.MessageTypeNewTx,
+			Message:        *tx,
+		})
+		if err != nil {
+			return err
+		}
+		outMsg = buildOtcOutboundMessage(peerRouting, dto.MessageTypeNewTx, idempotenceKey, payload)
+		return p.outboundRepo.Enqueue(ctx, outMsg)
+	})
+	return statusCode, vote, outMsg, err
+}
+
+// CommitAndEnqueueFollowUp commits the local transaction and, if the peer is
+// remote, enqueues a COMMIT_TX outbox row within the same DB transaction.
+func (p *MessageProcessor) CommitAndEnqueueFollowUp(
+	ctx context.Context,
+	txID dto.ForeignBankId,
+	peerRouting int,
+	idempotenceKey string,
+) (int, *model.OutboundMessage, error) {
+	var statusCode int
+	var outMsg *model.OutboundMessage
+
+	err := p.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		var err error
+		statusCode, err = p.CommitLocalTransaction(ctx, txID)
+		if err != nil || peerRouting == p.peers.OurRoutingNumber() {
+			return err
+		}
+		payload, err := json.Marshal(dto.CommitTxMessage{
+			IdempotenceKey: dto.IdempotenceKey{RoutingNumber: p.peers.OurRoutingNumber(), LocallyGeneratedKey: idempotenceKey},
+			MessageType:    dto.MessageTypeCommitTx,
+			Message:        dto.CommitTransaction{TransactionID: txID},
+		})
+		if err != nil {
+			return err
+		}
+		outMsg = buildOtcOutboundMessage(peerRouting, dto.MessageTypeCommitTx, idempotenceKey, payload)
+		return p.outboundRepo.Enqueue(ctx, outMsg)
+	})
+	return statusCode, outMsg, err
+}
+
+// RollbackAndEnqueueFollowUp rolls back the local transaction and, if the
+// peer is remote, enqueues a ROLLBACK_TX outbox row within the same DB
+// transaction.
+func (p *MessageProcessor) RollbackAndEnqueueFollowUp(
+	ctx context.Context,
+	txID dto.ForeignBankId,
+	peerRouting int,
+	idempotenceKey string,
+) (int, *model.OutboundMessage, error) {
+	var statusCode int
+	var outMsg *model.OutboundMessage
+
+	err := p.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		var err error
+		statusCode, err = p.RollbackLocalTransaction(ctx, txID)
+		if err != nil || peerRouting == p.peers.OurRoutingNumber() {
+			return err
+		}
+		payload, err := json.Marshal(dto.RollbackTxMessage{
+			IdempotenceKey: dto.IdempotenceKey{RoutingNumber: p.peers.OurRoutingNumber(), LocallyGeneratedKey: idempotenceKey},
+			MessageType:    dto.MessageTypeRollbackTx,
+			Message:        dto.RollbackTransaction{TransactionID: txID},
+		})
+		if err != nil {
+			return err
+		}
+		outMsg = buildOtcOutboundMessage(peerRouting, dto.MessageTypeRollbackTx, idempotenceKey, payload)
+		return p.outboundRepo.Enqueue(ctx, outMsg)
+	})
+	return statusCode, outMsg, err
+}
+
+func buildOtcOutboundMessage(peerRouting int, msgType dto.MessageType, idempotenceKey string, payload []byte) *model.OutboundMessage {
+	return &model.OutboundMessage{
+		PeerRoutingNumber:   peerRouting,
+		MessageType:         string(msgType),
+		IdempotenceKeyLocal: idempotenceKey,
+		Payload:             payload,
+		FlowType:            "OTC",
+		Status:              model.OutboundPending,
+	}
 }

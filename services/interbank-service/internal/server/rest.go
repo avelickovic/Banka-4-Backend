@@ -117,12 +117,6 @@ func setupRoutes(
 			negotiations.GET("/:rn/:id/accept", peerOtcHandler.AcceptNegotiation)
 		}
 
-		contracts := interbank.Group("/contracts")
-		{
-			contracts.POST("/:rn/:id/reserve-shares", peerOtcHandler.ReserveContractShares)
-			contracts.POST("/:rn/:id/consume-shares", peerOtcHandler.ConsumeContractShares)
-			contracts.POST("/:rn/:id/release-shares", peerOtcHandler.ReleaseContractShares)
-		}
 	}
 }
 

@@ -21,6 +21,7 @@ type OutboundMessage struct {
 	MessageType         string                `gorm:"not null;size:32;column:message_type"`
 	IdempotenceKeyLocal string                `gorm:"not null;size:64;column:idempotence_key_local;uniqueIndex"`
 	Payload             []byte                `gorm:"type:jsonb;not null;column:payload"`
+	FlowType            string                `gorm:"not null;size:16;default:'PAYMENT';column:flow_type"`
 	Status              OutboundMessageStatus `gorm:"not null;size:16;index;column:status"`
 	Attempts            int                   `gorm:"not null;default:0;column:attempts"`
 	NextRetryAt         time.Time             `gorm:"not null;index;column:next_retry_at"`

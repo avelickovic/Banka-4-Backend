@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	stderrors "errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/errors"
-	"github.com/RAF-SI-2025/Banka-4-Backend/common/pkg/pb"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/interbank-service/internal/client"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/interbank-service/internal/dto"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/interbank-service/internal/model"
@@ -29,13 +27,13 @@ import (
 type PeerOtcService struct {
 	negotiations  repository.PeerNegotiationRepository
 	contracts     repository.PeerContractRepository
-	exercises     repository.PeerContractExerciseRepository
 	peers         *PeerResolver
 	client        *PeerOtcClient
 	tradingClient client.TradingClient
 	userClient    client.UserClient
 	bankingClient client.BankingClient
 	processor     *MessageProcessor
+	outboundRepo  repository.OutboundMessageRepository
 }
 
 type remoteCommitPendingError struct {
@@ -53,24 +51,24 @@ func (e *remoteCommitPendingError) Unwrap() error {
 func NewPeerOtcService(
 	negotiations repository.PeerNegotiationRepository,
 	contracts repository.PeerContractRepository,
-	exercises repository.PeerContractExerciseRepository,
 	peers *PeerResolver,
 	peerClient *PeerOtcClient,
 	tradingClient client.TradingClient,
 	userClient client.UserClient,
 	bankingClient client.BankingClient,
 	processor *MessageProcessor,
+	outboundRepo repository.OutboundMessageRepository,
 ) *PeerOtcService {
 	return &PeerOtcService{
 		negotiations:  negotiations,
 		contracts:     contracts,
-		exercises:     exercises,
 		peers:         peers,
 		client:        peerClient,
 		tradingClient: tradingClient,
 		userClient:    userClient,
 		bankingClient: bankingClient,
 		processor:     processor,
+		outboundRepo:  outboundRepo,
 	}
 }
 
@@ -106,6 +104,7 @@ func (s *PeerOtcService) CreateFromPeer(ctx context.Context, senderRouting int, 
 		Premium:               offer.Premium,
 		PremiumCurrency:       offer.PremiumCurrency,
 		SettlementDate:        offer.SettlementDate,
+		BuyerAccountNumber:    offer.BuyerAccountNumber,
 		LastModifiedByRouting: offer.LastModifiedBy.RoutingNumber,
 		LastModifiedByID:      offer.LastModifiedBy.ID,
 		Status:                model.PeerNegotiationOngoing,
@@ -190,6 +189,9 @@ func (s *PeerOtcService) UpdateCounter(ctx context.Context, senderRouting, routi
 	if n.Ticker != offer.Ticker {
 		return errors.BadRequestErr("ticker cannot change during negotiation")
 	}
+	if n.BuyerAccountNumber != offer.BuyerAccountNumber {
+		return errors.BadRequestErr("buyerAccountNumber cannot change during negotiation")
+	}
 
 	// Apply counter-offer.
 	n.Amount = offer.Amount
@@ -245,26 +247,23 @@ func (s *PeerOtcService) validateOffer(o dto.OtcOffer) error {
 	if strings.TrimSpace(o.Ticker) == "" {
 		return errors.BadRequestErr("ticker is required")
 	}
-
 	if o.Amount <= 0 {
 		return errors.BadRequestErr("amount must be positive")
 	}
-
 	if o.PricePerStock <= 0 {
 		return errors.BadRequestErr("pricePerStock must be positive")
 	}
-
 	if o.Premium < 0 {
 		return errors.BadRequestErr("premium must be non-negative")
 	}
-
+	if strings.TrimSpace(o.BuyerAccountNumber) == "" {
+		return errors.BadRequestErr("buyerAccountNumber is required")
+	}
 	if _, err := time.Parse(time.RFC3339, o.SettlementDate); err != nil {
-		// Accept either full RFC 3339 or a bare YYYY-MM-DD; reject anything else.
 		if _, err2 := time.Parse("2006-01-02", o.SettlementDate); err2 != nil {
 			return errors.BadRequestErr("settlementDate must be ISO 8601 (date or datetime)")
 		}
 	}
-
 	return nil
 }
 
@@ -284,16 +283,17 @@ func toNegotiationDTO(n *model.PeerNegotiation, ourRouting int) *dto.OtcNegotiat
 		Status:    strings.ToLower(string(n.Status)),
 		UpdatedAt: n.UpdatedAt.Format(time.RFC3339),
 		Offer: dto.OtcOffer{
-			BuyerID:         dto.ForeignBankId{RoutingNumber: n.BuyerRoutingNumber, ID: n.BuyerID},
-			SellerID:        dto.ForeignBankId{RoutingNumber: n.SellerRoutingNumber, ID: n.SellerID},
-			Ticker:          n.Ticker,
-			Amount:          n.Amount,
-			PricePerStock:   n.PricePerStock,
-			PriceCurrency:   n.PriceCurrency,
-			Premium:         n.Premium,
-			PremiumCurrency: n.PremiumCurrency,
-			SettlementDate:  n.SettlementDate,
-			LastModifiedBy:  dto.ForeignBankId{RoutingNumber: n.LastModifiedByRouting, ID: n.LastModifiedByID},
+			BuyerID:            dto.ForeignBankId{RoutingNumber: n.BuyerRoutingNumber, ID: n.BuyerID},
+			SellerID:           dto.ForeignBankId{RoutingNumber: n.SellerRoutingNumber, ID: n.SellerID},
+			Ticker:             n.Ticker,
+			Amount:             n.Amount,
+			PricePerStock:      n.PricePerStock,
+			PriceCurrency:      n.PriceCurrency,
+			Premium:            n.Premium,
+			PremiumCurrency:    n.PremiumCurrency,
+			SettlementDate:     n.SettlementDate,
+			LastModifiedBy:     dto.ForeignBankId{RoutingNumber: n.LastModifiedByRouting, ID: n.LastModifiedByID},
+			BuyerAccountNumber: n.BuyerAccountNumber,
 		},
 	}
 }
@@ -328,27 +328,6 @@ func toPeerContractDTO(c *model.PeerContract) *dto.PeerContract {
 	}
 }
 
-func toPeerExerciseDTO(e *model.PeerContractExercise) *dto.PeerContractExercise {
-	var completedAt *string
-	if e.CompletedAt != nil {
-		v := e.CompletedAt.Format(time.RFC3339)
-		completedAt = &v
-	}
-
-	return &dto.PeerContractExercise{
-		ID:           e.ID,
-		ContractID:   dto.ForeignBankId{RoutingNumber: e.ContractAuthorityRoutingNumber, ID: e.ContractID},
-		ExecutionKey: e.ExecutionKey,
-		CurrentStep:  string(e.CurrentStep),
-		Status:       string(e.Status),
-		RetryCount:   e.RetryCount,
-		LastError:    e.LastError,
-		CompletedAt:  completedAt,
-		CreatedAt:    e.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:    e.UpdatedAt.Format(time.RFC3339),
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Frontend-facing operations (driven by our authenticated users via JWT).
 // ---------------------------------------------------------------------------
@@ -356,14 +335,15 @@ func toPeerExerciseDTO(e *model.PeerContractExercise) *dto.PeerContractExercise 
 // LocalCreateRequest is the input our users submit when initiating a
 // cross-bank negotiation against a peer seller.
 type LocalCreateRequest struct {
-	SellerID        dto.ForeignBankId
-	Ticker          string
-	Amount          int
-	PricePerStock   float64
-	PriceCurrency   string
-	Premium         float64
-	PremiumCurrency string
-	SettlementDate  string
+	SellerID           dto.ForeignBankId
+	Ticker             string
+	Amount             int
+	PricePerStock      float64
+	PriceCurrency      string
+	Premium            float64
+	PremiumCurrency    string
+	SettlementDate     string
+	BuyerAccountNumber string
 }
 
 // LocalCounterRequest is the input our users submit on counter-offer.
@@ -374,11 +354,12 @@ type LocalCounterRequest struct {
 	Premium         float64
 	PremiumCurrency string
 	SettlementDate  string
-	AccountNumber   string
 }
 
-type LocalAcceptRequest struct {
-	AccountNumber string
+type LocalAcceptRequest struct{}
+
+type LocalExerciseRequest struct {
+	BuyerAccountNumber string
 }
 
 // ListAllPeerPublicStocks aggregates §3.1 public-stock listings from every
@@ -427,16 +408,17 @@ func (s *PeerOtcService) CreateForLocalBuyer(ctx context.Context, localUserID ui
 	}
 
 	offer := dto.OtcOffer{
-		BuyerID:         buyer,
-		SellerID:        req.SellerID,
-		Ticker:          req.Ticker,
-		Amount:          req.Amount,
-		PricePerStock:   req.PricePerStock,
-		PriceCurrency:   req.PriceCurrency,
-		Premium:         req.Premium,
-		PremiumCurrency: req.PremiumCurrency,
-		SettlementDate:  req.SettlementDate,
-		LastModifiedBy:  buyer,
+		BuyerID:            buyer,
+		SellerID:           req.SellerID,
+		Ticker:             req.Ticker,
+		Amount:             req.Amount,
+		PricePerStock:      req.PricePerStock,
+		PriceCurrency:      req.PriceCurrency,
+		Premium:            req.Premium,
+		PremiumCurrency:    req.PremiumCurrency,
+		SettlementDate:     req.SettlementDate,
+		LastModifiedBy:     buyer,
+		BuyerAccountNumber: req.BuyerAccountNumber,
 	}
 	if err := s.validateOffer(offer); err != nil {
 		return nil, err
@@ -461,6 +443,7 @@ func (s *PeerOtcService) CreateForLocalBuyer(ctx context.Context, localUserID ui
 		Premium:               req.Premium,
 		PremiumCurrency:       req.PremiumCurrency,
 		SettlementDate:        req.SettlementDate,
+		BuyerAccountNumber:    req.BuyerAccountNumber,
 		LastModifiedByRouting: buyer.RoutingNumber,
 		LastModifiedByID:      buyer.ID,
 		Status:                model.PeerNegotiationOngoing,
@@ -494,16 +477,17 @@ func (s *PeerOtcService) SendCounterOfferAsLocal(
 	}
 
 	offer := dto.OtcOffer{
-		BuyerID:         dto.ForeignBankId{RoutingNumber: mirror.BuyerRoutingNumber, ID: mirror.BuyerID},
-		SellerID:        dto.ForeignBankId{RoutingNumber: mirror.SellerRoutingNumber, ID: mirror.SellerID},
-		Ticker:          mirror.Ticker,
-		Amount:          req.Amount,
-		PricePerStock:   req.PricePerStock,
-		PriceCurrency:   req.PriceCurrency,
-		Premium:         req.Premium,
-		PremiumCurrency: req.PremiumCurrency,
-		SettlementDate:  req.SettlementDate,
-		LastModifiedBy:  me,
+		BuyerID:            dto.ForeignBankId{RoutingNumber: mirror.BuyerRoutingNumber, ID: mirror.BuyerID},
+		SellerID:           dto.ForeignBankId{RoutingNumber: mirror.SellerRoutingNumber, ID: mirror.SellerID},
+		Ticker:             mirror.Ticker,
+		Amount:             req.Amount,
+		PricePerStock:      req.PricePerStock,
+		PriceCurrency:      req.PriceCurrency,
+		Premium:            req.Premium,
+		PremiumCurrency:    req.PremiumCurrency,
+		SettlementDate:     req.SettlementDate,
+		LastModifiedBy:     me,
+		BuyerAccountNumber: mirror.BuyerAccountNumber,
 	}
 	if err := s.validateOffer(offer); err != nil {
 		return err
@@ -566,15 +550,17 @@ func (s *PeerOtcService) AcceptFromPeer(ctx context.Context, senderRouting, rout
 		return nil, err
 	}
 
-	contract, err := s.ensureContractForNegotiation(ctx, n, nil, nil, true)
+	contract, err := s.contracts.FindByID(ctx, n.SellerRoutingNumber, n.ID)
 	if err != nil {
-		return nil, err
+		return nil, errors.InternalErr(err)
 	}
-
+	if contract == nil {
+		return nil, errors.InternalErr(fmt.Errorf("contract not created after accept"))
+	}
 	return toPeerContractDTO(contract), nil
 }
 
-func (s *PeerOtcService) AcceptAsLocal(ctx context.Context, localUserID uint, negotiationID dto.ForeignBankId, req LocalAcceptRequest) (*dto.PeerContract, error) {
+func (s *PeerOtcService) AcceptAsLocal(ctx context.Context, localUserID uint, negotiationID dto.ForeignBankId, _ LocalAcceptRequest) (*dto.PeerContract, error) {
 	userIDStr := strconv.FormatUint(uint64(localUserID), 10)
 	ourRouting := s.peers.OurRoutingNumber()
 
@@ -600,17 +586,6 @@ func (s *PeerOtcService) AcceptAsLocal(ctx context.Context, localUserID uint, ne
 			return nil, errors.ConflictErr("you cannot accept your own latest offer")
 		}
 
-		var buyerAccount, sellerAccount *string
-		if strings.TrimSpace(req.AccountNumber) != "" {
-			account := strings.TrimSpace(req.AccountNumber)
-			if n.BuyerRoutingNumber == ourRouting && n.BuyerID == userIDStr {
-				buyerAccount = &account
-			}
-			if n.SellerRoutingNumber == ourRouting && n.SellerID == userIDStr {
-				sellerAccount = &account
-			}
-		}
-
 		existing, err := s.contracts.FindByID(ctx, n.SellerRoutingNumber, n.ID)
 		if err != nil {
 			return nil, errors.InternalErr(err)
@@ -623,9 +598,12 @@ func (s *PeerOtcService) AcceptAsLocal(ctx context.Context, localUserID uint, ne
 			return nil, err
 		}
 
-		contract, err := s.ensureContractForNegotiation(ctx, n, buyerAccount, sellerAccount, true)
+		contract, err := s.contracts.FindByID(ctx, n.SellerRoutingNumber, n.ID)
 		if err != nil {
-			return nil, err
+			return nil, errors.InternalErr(err)
+		}
+		if contract == nil {
+			return nil, errors.InternalErr(fmt.Errorf("contract not created after accept"))
 		}
 		return toPeerContractDTO(contract), nil
 	}
@@ -638,27 +616,17 @@ func (s *PeerOtcService) AcceptAsLocal(ctx context.Context, localUserID uint, ne
 		return nil, errors.ConflictErr("negotiation is not ongoing")
 	}
 
-	remoteContract, err := s.client.Accept(ctx, negotiationID)
-	if err != nil {
+	if _, err := s.client.Accept(ctx, negotiationID); err != nil {
 		return nil, err
 	}
 
-	account := strings.TrimSpace(req.AccountNumber)
-	var buyerAccount, sellerAccount *string
-	if account != "" {
-		if mirror.BuyerRoutingNumber == ourRouting && mirror.BuyerID == userIDStr {
-			buyerAccount = &account
-		}
-		if mirror.SellerRoutingNumber == ourRouting && mirror.SellerID == userIDStr {
-			sellerAccount = &account
-		}
-	}
-
-	contract, err := s.ensureMirrorContract(ctx, mirror, remoteContract, buyerAccount, sellerAccount)
+	contract, err := s.contracts.FindByID(ctx, negotiationID.RoutingNumber, negotiationID.ID)
 	if err != nil {
-		return nil, err
+		return nil, errors.InternalErr(err)
 	}
-
+	if contract == nil {
+		return nil, errors.InternalErr(fmt.Errorf("contract not created after accept"))
+	}
 	return toPeerContractDTO(contract), nil
 }
 
@@ -675,57 +643,7 @@ func (s *PeerOtcService) ListMyContracts(ctx context.Context, localUserID uint) 
 	return out, nil
 }
 
-func (s *PeerOtcService) ReserveSharesFromPeer(ctx context.Context, senderRouting, authorityRouting int, contractID string) error {
-	contract, err := s.loadPeerContractForSellerStep(ctx, senderRouting, authorityRouting, contractID)
-	if err != nil {
-		return err
-	}
-
-	sellerID, err := parsePeerPartyID(contract.SellerID, "seller id")
-	if err != nil {
-		return err
-	}
-
-	_, err = s.tradingClient.ReservePeerOtcShares(ctx, &pb.ReservePeerOtcSharesRequest{
-		ContractId: contractStorageKey(contract),
-		SellerId:   uint64(sellerID),
-		Ticker:     contract.Ticker,
-		Amount:     float64(contract.Amount),
-	})
-	if err != nil {
-		return errors.InternalErr(err)
-	}
-
-	return nil
-}
-
-func (s *PeerOtcService) ConsumeSharesFromPeer(ctx context.Context, senderRouting, authorityRouting int, contractID string) error {
-	contract, err := s.loadPeerContractForSellerStep(ctx, senderRouting, authorityRouting, contractID)
-	if err != nil {
-		return err
-	}
-
-	if _, err := s.tradingClient.ConsumePeerOtcShares(ctx, contractStorageKey(contract)); err != nil {
-		return errors.InternalErr(err)
-	}
-
-	return nil
-}
-
-func (s *PeerOtcService) ReleaseSharesFromPeer(ctx context.Context, senderRouting, authorityRouting int, contractID string) error {
-	contract, err := s.loadPeerContractForSellerStep(ctx, senderRouting, authorityRouting, contractID)
-	if err != nil {
-		return err
-	}
-
-	if _, err := s.tradingClient.ReleasePeerOtcShares(ctx, contractStorageKey(contract)); err != nil {
-		return errors.InternalErr(err)
-	}
-
-	return nil
-}
-
-func (s *PeerOtcService) ExerciseAsLocal(ctx context.Context, localUserID uint, contractID dto.ForeignBankId) (*dto.PeerContractExercise, error) {
+func (s *PeerOtcService) ExerciseAsLocal(ctx context.Context, localUserID uint, contractID dto.ForeignBankId, buyerAccountNumber string) (*dto.PeerContract, error) {
 	contract, err := s.contracts.FindByID(ctx, contractID.RoutingNumber, contractID.ID)
 	if err != nil {
 		return nil, errors.InternalErr(err)
@@ -742,44 +660,22 @@ func (s *PeerOtcService) ExerciseAsLocal(ctx context.Context, localUserID uint, 
 	if contract.Status != model.PeerContractActive {
 		return nil, errors.ConflictErr("contract is not active")
 	}
-
-	exercise, err := s.exercises.FindByContract(ctx, contract.AuthorityRoutingNumber, contract.ID)
-	if err != nil {
-		return nil, errors.InternalErr(err)
-	}
-	if exercise == nil {
-		exercise = &model.PeerContractExercise{
-			ContractAuthorityRoutingNumber: contract.AuthorityRoutingNumber,
-			ContractID:                     contract.ID,
-			ExecutionKey:                   fmt.Sprintf("peer-otc-%d-%s-%s", contract.AuthorityRoutingNumber, contract.ID, uuid.NewString()),
-			CurrentStep:                    model.PeerExerciseStepInit,
-			Status:                         model.PeerExerciseInProgress,
-		}
-		if err := s.exercises.Create(ctx, exercise); err != nil {
-			return nil, errors.InternalErr(err)
-		}
+	if strings.TrimSpace(buyerAccountNumber) == "" {
+		return nil, errors.BadRequestErr("buyerAccountNumber is required to exercise")
 	}
 
-	if exercise.Status == model.PeerExerciseCompleted {
-		return toPeerExerciseDTO(exercise), nil
-	}
-	if exercise.Status == model.PeerExerciseFailed {
-		return nil, errors.ConflictErr("peer OTC exercise has already failed")
-	}
+	executionKey := fmt.Sprintf("peer-otc-exercise-%d-%s-%s", contract.AuthorityRoutingNumber, contract.ID, uuid.NewString())
+	tx := s.exerciseTransaction(contract, buyerAccountNumber, executionKey)
 
-	if err := s.processPeerExercise(ctx, contract, exercise); err != nil {
-		latest, latestErr := s.exercises.FindByID(ctx, exercise.ID)
-		if latestErr == nil && latest != nil {
-			return toPeerExerciseDTO(latest), err
-		}
+	if err := s.coordinateTwoBankTransaction(ctx, contract.SellerRoutingNumber, tx, executionKey); err != nil {
 		return nil, err
 	}
 
-	latest, err := s.exercises.FindByID(ctx, exercise.ID)
+	updated, err := s.contracts.FindByID(ctx, contractID.RoutingNumber, contractID.ID)
 	if err != nil {
 		return nil, errors.InternalErr(err)
 	}
-	return toPeerExerciseDTO(latest), nil
+	return toPeerContractDTO(updated), nil
 }
 
 // WithdrawAsLocal closes a cross-bank negotiation from our side and
@@ -901,140 +797,6 @@ func (s *PeerOtcService) findLocalMirrorByRemote(
 	return nil, errors.NotFoundErr("negotiation not found for caller")
 }
 
-func (s *PeerOtcService) ensureContractForNegotiation(
-	ctx context.Context,
-	n *model.PeerNegotiation,
-	buyerAccountNumber *string,
-	sellerAccountNumber *string,
-	isAuthoritative bool,
-) (*model.PeerContract, error) {
-	authorityRouting := n.SellerRoutingNumber
-	contractID := n.ID
-	if !n.IsAuthoritative && n.RemoteNegotiationID != nil {
-		contractID = *n.RemoteNegotiationID
-	}
-
-	existing, err := s.contracts.FindByID(ctx, authorityRouting, contractID)
-	if err != nil {
-		return nil, errors.InternalErr(err)
-	}
-	if existing != nil {
-		updated := false
-		if buyerAccountNumber != nil && existing.BuyerAccountNumber == nil {
-			existing.BuyerAccountNumber = buyerAccountNumber
-			updated = true
-		}
-		if sellerAccountNumber != nil && existing.SellerAccountNumber == nil {
-			existing.SellerAccountNumber = sellerAccountNumber
-			updated = true
-		}
-		if updated {
-			if err := s.contracts.Update(ctx, existing); err != nil {
-				return nil, errors.InternalErr(err)
-			}
-		}
-		return existing, nil
-	}
-
-	contract := &model.PeerContract{
-		AuthorityRoutingNumber: authorityRouting,
-		ID:                     contractID,
-		NegotiationID:          contractID,
-		BuyerRoutingNumber:     n.BuyerRoutingNumber,
-		BuyerID:                n.BuyerID,
-		SellerRoutingNumber:    n.SellerRoutingNumber,
-		SellerID:               n.SellerID,
-		Ticker:                 n.Ticker,
-		Amount:                 n.Amount,
-		StrikePrice:            n.PricePerStock,
-		StrikeCurrency:         n.PriceCurrency,
-		Premium:                n.Premium,
-		PremiumCurrency:        n.PremiumCurrency,
-		SettlementDate:         n.SettlementDate,
-		BuyerAccountNumber:     buyerAccountNumber,
-		SellerAccountNumber:    sellerAccountNumber,
-		Status:                 model.PeerContractActive,
-		IsAuthoritative:        isAuthoritative,
-	}
-
-	if err := s.contracts.Create(ctx, contract); err != nil {
-		return nil, errors.InternalErr(err)
-	}
-
-	if n.Status == model.PeerNegotiationOngoing {
-		n.Status = model.PeerNegotiationAccepted
-		if err := s.negotiations.Update(ctx, n); err != nil {
-			return nil, errors.InternalErr(err)
-		}
-	}
-
-	return contract, nil
-}
-
-func (s *PeerOtcService) ensureMirrorContract(
-	ctx context.Context,
-	mirror *model.PeerNegotiation,
-	remote *dto.PeerContract,
-	buyerAccountNumber *string,
-	sellerAccountNumber *string,
-) (*model.PeerContract, error) {
-	existing, err := s.contracts.FindByID(ctx, remote.ID.RoutingNumber, remote.ID.ID)
-	if err != nil {
-		return nil, errors.InternalErr(err)
-	}
-	if existing != nil {
-		updated := false
-		if buyerAccountNumber != nil && existing.BuyerAccountNumber == nil {
-			existing.BuyerAccountNumber = buyerAccountNumber
-			updated = true
-		}
-		if sellerAccountNumber != nil && existing.SellerAccountNumber == nil {
-			existing.SellerAccountNumber = sellerAccountNumber
-			updated = true
-		}
-		if updated {
-			if err := s.contracts.Update(ctx, existing); err != nil {
-				return nil, errors.InternalErr(err)
-			}
-		}
-		return existing, nil
-	}
-
-	contract := &model.PeerContract{
-		AuthorityRoutingNumber: remote.ID.RoutingNumber,
-		ID:                     remote.ID.ID,
-		NegotiationID:          remote.NegotiationID.ID,
-		BuyerRoutingNumber:     mirror.BuyerRoutingNumber,
-		BuyerID:                mirror.BuyerID,
-		SellerRoutingNumber:    mirror.SellerRoutingNumber,
-		SellerID:               mirror.SellerID,
-		Ticker:                 remote.Ticker,
-		Amount:                 remote.Amount,
-		StrikePrice:            remote.StrikePrice.Amount,
-		StrikeCurrency:         string(remote.StrikePrice.Currency),
-		Premium:                remote.Premium.Amount,
-		PremiumCurrency:        string(remote.Premium.Currency),
-		SettlementDate:         remote.SettlementDate,
-		BuyerAccountNumber:     buyerAccountNumber,
-		SellerAccountNumber:    sellerAccountNumber,
-		Status:                 model.PeerContractActive,
-		IsAuthoritative:        false,
-	}
-
-	if err := s.contracts.Create(ctx, contract); err != nil {
-		return nil, errors.InternalErr(err)
-	}
-
-	if mirror.Status == model.PeerNegotiationOngoing {
-		mirror.Status = model.PeerNegotiationAccepted
-		if err := s.negotiations.Update(ctx, mirror); err != nil {
-			return nil, errors.InternalErr(err)
-		}
-	}
-
-	return contract, nil
-}
-
 func (s *PeerOtcService) coordinateAcceptTransaction(ctx context.Context, n *model.PeerNegotiation) error {
 	tx := s.acceptTransaction(n)
 	peerRouting := n.BuyerRoutingNumber
@@ -1078,50 +840,72 @@ func (s *PeerOtcService) acceptTransaction(n *model.PeerNegotiation) dto.Transac
 		PaymentCode:    "289",
 		PaymentPurpose: "OTC option premium",
 		Postings: []dto.Posting{
+			// posting 1: buyer ACCOUNT MONAS DEBIT — premium payment
 			{
-				Account: personAccount(n.BuyerRoutingNumber, n.BuyerID),
+				Account: dto.TxAccount{Type: dto.TxAccountAccount, Num: &[]string{n.BuyerAccountNumber}[0]},
 				Amount:  -n.Premium,
 				Asset:   monasAsset,
 			},
+			// posting 2: seller PERSON MONAS CREDIT — resolved by ClientId on seller's bank
 			{
 				Account: personAccount(n.SellerRoutingNumber, n.SellerID),
 				Amount:  n.Premium,
 				Asset:   monasAsset,
 			},
-			{
-				Account: personAccount(n.BuyerRoutingNumber, n.BuyerID),
-				Amount:  1,
-				Asset:   optionAsset,
-			},
+			// posting 3: seller PERSON OPTION DEBIT — seller gives option
 			{
 				Account: personAccount(n.SellerRoutingNumber, n.SellerID),
 				Amount:  -1,
+				Asset:   optionAsset,
+			},
+			// posting 4: buyer PERSON OPTION CREDIT — buyer receives option
+			{
+				Account: personAccount(n.BuyerRoutingNumber, n.BuyerID),
+				Amount:  1,
 				Asset:   optionAsset,
 			},
 		},
 	}
 }
 
-func (s *PeerOtcService) exerciseCashTransaction(contract *model.PeerContract, executionKey string) dto.Transaction {
+func (s *PeerOtcService) exerciseTransaction(contract *model.PeerContract, buyerAccountNumber, executionKey string) dto.Transaction {
 	amount := float64(contract.Amount) * contract.StrikePrice
+	contractID := dto.ForeignBankId{RoutingNumber: contract.AuthorityRoutingNumber, ID: contract.ID}
+	stockAsset := dto.Asset{Type: dto.AssetStock, Body: map[string]any{"ticker": contract.Ticker}}
+	monasAsset := dto.Asset{Type: dto.AssetMonas, Body: map[string]any{"currency": contract.StrikeCurrency}}
+
 	return dto.Transaction{
 		TransactionID: dto.ForeignBankId{
 			RoutingNumber: s.peers.OurRoutingNumber(),
 			ID:            executionKey,
 		},
-		Message:        "Peer OTC option exercise cash settlement",
+		Message:        "Peer OTC option exercise",
 		PaymentCode:    "289",
 		PaymentPurpose: "OTC option exercise",
 		Postings: []dto.Posting{
+			// posting 1: buyer ACCOUNT MONAS DEBIT — strike payment
+			{
+				Account: dto.TxAccount{Type: dto.TxAccountAccount, Num: &[]string{buyerAccountNumber}[0]},
+				Amount:  -amount,
+				Asset:   monasAsset,
+			},
+			// posting 2: option OPTION MONAS CREDIT — seller receives strike via pseudo-account
+			{
+				Account: dto.TxAccount{Type: dto.TxAccountOption, ID: &contractID},
+				Amount:  amount,
+				Asset:   monasAsset,
+			},
+			// posting 3: option OPTION STOCK DEBIT — seller's reserved shares released
+			{
+				Account: dto.TxAccount{Type: dto.TxAccountOption, ID: &contractID},
+				Amount:  -float64(contract.Amount),
+				Asset:   stockAsset,
+			},
+			// posting 4: buyer PERSON STOCK CREDIT — buyer receives shares
 			{
 				Account: personAccount(contract.BuyerRoutingNumber, contract.BuyerID),
-				Amount:  -amount,
-				Asset:   dto.Asset{Type: dto.AssetMonas, Body: map[string]any{"currency": contract.StrikeCurrency}},
-			},
-			{
-				Account: personAccount(contract.SellerRoutingNumber, contract.SellerID),
-				Amount:  amount,
-				Asset:   dto.Asset{Type: dto.AssetMonas, Body: map[string]any{"currency": contract.StrikeCurrency}},
+				Amount:  float64(contract.Amount),
+				Asset:   stockAsset,
 			},
 		},
 	}
@@ -1165,51 +949,6 @@ func (s *PeerOtcService) coordinateTwoBankTransaction(ctx context.Context, peerR
 	return nil
 }
 
-func (s *PeerOtcService) prepareTwoBankTransaction(ctx context.Context, peerRouting int, tx dto.Transaction, keyPrefix string) error {
-	_, localVote, err := s.processor.PrepareLocalTransaction(ctx, &tx)
-	if err != nil {
-		return errors.InternalErr(err)
-	}
-	if localVote.Vote != dto.VoteYes {
-		return errors.ConflictErr(fmt.Sprintf("local bank voted NO: %s", voteReasons(localVote)))
-	}
-	if peerRouting == s.peers.OurRoutingNumber() {
-		return nil
-	}
-	remoteVote, err := s.client.SendNewTx(ctx, peerRouting, keyPrefix+"-new", tx)
-	if err != nil {
-		_, _ = s.processor.RollbackLocalTransaction(ctx, tx.TransactionID)
-		return err
-	}
-	if remoteVote == nil || remoteVote.Vote != dto.VoteYes {
-		_, _ = s.processor.RollbackLocalTransaction(ctx, tx.TransactionID)
-		return errors.ConflictErr(fmt.Sprintf("peer bank voted NO: %s", voteReasonsValue(remoteVote)))
-	}
-	return nil
-}
-
-func (s *PeerOtcService) commitTwoBankTransaction(ctx context.Context, peerRouting int, txID dto.ForeignBankId, keyPrefix string) error {
-	if _, err := s.processor.CommitLocalTransaction(ctx, txID); err != nil {
-		if peerRouting != s.peers.OurRoutingNumber() {
-			_ = s.client.SendRollbackTx(ctx, peerRouting, keyPrefix+"-rollback", txID)
-		}
-		return errors.InternalErr(err)
-	}
-	if peerRouting != s.peers.OurRoutingNumber() {
-		if err := s.client.SendCommitTx(ctx, peerRouting, keyPrefix+"-commit", txID); err != nil {
-			return errors.ServiceUnavailableErr(&remoteCommitPendingError{err: err})
-		}
-	}
-	return nil
-}
-
-func (s *PeerOtcService) rollbackTwoBankTransaction(ctx context.Context, peerRouting int, txID dto.ForeignBankId, keyPrefix string) {
-	_, _ = s.processor.RollbackLocalTransaction(ctx, txID)
-	if peerRouting != s.peers.OurRoutingNumber() {
-		_ = s.client.SendRollbackTx(ctx, peerRouting, keyPrefix+"-rollback", txID)
-	}
-}
-
 func personAccount(routing int, id string) dto.TxAccount {
 	return dto.TxAccount{
 		Type: dto.TxAccountPerson,
@@ -1235,246 +974,3 @@ func voteReasonsValue(vote *dto.TransactionVote) string {
 	return voteReasons(*vote)
 }
 
-func isRemoteCommitPending(err error) bool {
-	var pending *remoteCommitPendingError
-	return stderrors.As(err, &pending)
-}
-
-func (s *PeerOtcService) processPeerExercise(ctx context.Context, contract *model.PeerContract, exercise *model.PeerContractExercise) error {
-	for i := 0; i < 6; i++ {
-		switch exercise.Status {
-		case model.PeerExerciseCompleted, model.PeerExerciseFailed:
-			return nil
-		case model.PeerExerciseCompensating:
-			return s.compensatePeerExercise(ctx, contract, exercise)
-		}
-
-		var err error
-		switch exercise.CurrentStep {
-		case model.PeerExerciseStepInit:
-			err = s.reservePeerExerciseFunds(ctx, contract, exercise)
-		case model.PeerExerciseStepFundsReserved:
-			err = s.reservePeerExerciseShares(ctx, contract, exercise)
-		case model.PeerExerciseStepSharesConfirmed:
-			err = s.commitPeerExerciseFunds(ctx, contract, exercise)
-		case model.PeerExerciseStepFundsCommitted:
-			err = s.transferPeerExerciseOwnership(ctx, contract, exercise)
-		case model.PeerExerciseStepOwnershipTransferred:
-			err = s.completePeerExercise(ctx, contract, exercise)
-		default:
-			err = errors.BadRequestErr("unknown peer OTC exercise step")
-		}
-		if err != nil {
-			return err
-		}
-
-		latest, err := s.exercises.FindByID(ctx, exercise.ID)
-		if err != nil {
-			return errors.InternalErr(err)
-		}
-		if latest == nil {
-			return errors.NotFoundErr("peer OTC exercise not found")
-		}
-		exercise = latest
-	}
-
-	return nil
-}
-
-func (s *PeerOtcService) reservePeerExerciseFunds(ctx context.Context, contract *model.PeerContract, exercise *model.PeerContractExercise) error {
-	tx := s.exerciseCashTransaction(contract, exercise.ExecutionKey)
-	if err := s.prepareTwoBankTransaction(ctx, contract.SellerRoutingNumber, tx, exercise.ExecutionKey); err != nil {
-		return s.failPeerExercise(ctx, exercise, err.Error())
-	}
-
-	return s.advancePeerExercise(ctx, exercise, model.PeerExerciseStepFundsReserved, model.PeerExerciseInProgress, "")
-}
-
-func (s *PeerOtcService) reservePeerExerciseShares(ctx context.Context, contract *model.PeerContract, exercise *model.PeerContractExercise) error {
-	if contract.SellerRoutingNumber == s.peers.OurRoutingNumber() {
-		sellerID, err := parsePeerPartyID(contract.SellerID, "seller id")
-		if err != nil {
-			return s.compensateAfterFundsReserved(ctx, exercise, err.Error())
-		}
-		_, err = s.tradingClient.ReservePeerOtcShares(ctx, &pb.ReservePeerOtcSharesRequest{
-			ContractId: contractStorageKey(contract),
-			SellerId:   uint64(sellerID),
-			Ticker:     contract.Ticker,
-			Amount:     float64(contract.Amount),
-		})
-		if err != nil {
-			return s.compensateAfterFundsReserved(ctx, exercise, err.Error())
-		}
-	} else if err := s.client.ReserveShares(ctx, dto.ForeignBankId{RoutingNumber: contract.AuthorityRoutingNumber, ID: contract.ID}); err != nil {
-		return s.compensateAfterFundsReserved(ctx, exercise, err.Error())
-	}
-
-	return s.advancePeerExercise(ctx, exercise, model.PeerExerciseStepSharesConfirmed, model.PeerExerciseInProgress, "")
-}
-
-func (s *PeerOtcService) commitPeerExerciseFunds(ctx context.Context, contract *model.PeerContract, exercise *model.PeerContractExercise) error {
-	tx := s.exerciseCashTransaction(contract, exercise.ExecutionKey)
-	if err := s.commitTwoBankTransaction(ctx, contract.SellerRoutingNumber, tx.TransactionID, exercise.ExecutionKey); err != nil {
-		if isRemoteCommitPending(err) {
-			exercise.LastError = err.Error()
-			exercise.UpdatedAt = time.Now()
-			if updateErr := s.exercises.Update(ctx, exercise); updateErr != nil {
-				return errors.InternalErr(updateErr)
-			}
-			return errors.ServiceUnavailableErr(err)
-		}
-		return s.compensateAfterFundsReserved(ctx, exercise, err.Error())
-	}
-	return s.advancePeerExercise(ctx, exercise, model.PeerExerciseStepFundsCommitted, model.PeerExerciseInProgress, "")
-}
-
-func (s *PeerOtcService) transferPeerExerciseOwnership(ctx context.Context, contract *model.PeerContract, exercise *model.PeerContractExercise) error {
-	if contract.SellerRoutingNumber == s.peers.OurRoutingNumber() {
-		if _, err := s.tradingClient.ConsumePeerOtcShares(ctx, contractStorageKey(contract)); err != nil {
-			return s.compensateAfterFundsCommitted(ctx, exercise, err.Error())
-		}
-	} else if err := s.client.ConsumeShares(ctx, dto.ForeignBankId{RoutingNumber: contract.AuthorityRoutingNumber, ID: contract.ID}); err != nil {
-		return s.compensateAfterFundsCommitted(ctx, exercise, err.Error())
-	}
-
-	buyerID, err := parsePeerPartyID(contract.BuyerID, "buyer id")
-	if err != nil {
-		return s.compensateAfterFundsCommitted(ctx, exercise, err.Error())
-	}
-	if _, err := s.tradingClient.CreditPeerOtcShares(ctx, &pb.CreditPeerOtcSharesRequest{
-		ContractId:      contractStorageKey(contract),
-		BuyerId:         uint64(buyerID),
-		Ticker:          contract.Ticker,
-		Amount:          float64(contract.Amount),
-		PricePerUnitRsd: contract.StrikePrice,
-	}); err != nil {
-		return s.compensateAfterFundsCommitted(ctx, exercise, err.Error())
-	}
-
-	return s.advancePeerExercise(ctx, exercise, model.PeerExerciseStepOwnershipTransferred, model.PeerExerciseInProgress, "")
-}
-
-func (s *PeerOtcService) completePeerExercise(ctx context.Context, contract *model.PeerContract, exercise *model.PeerContractExercise) error {
-	now := time.Now()
-	contract.Status = model.PeerContractExercised
-	contract.ExercisedAt = &now
-	if err := s.contracts.Update(ctx, contract); err != nil {
-		return errors.InternalErr(err)
-	}
-
-	exercise.CurrentStep = model.PeerExerciseStepCompleted
-	exercise.Status = model.PeerExerciseCompleted
-	exercise.LastError = ""
-	exercise.CompletedAt = &now
-	exercise.UpdatedAt = now
-	if err := s.exercises.Update(ctx, exercise); err != nil {
-		return errors.InternalErr(err)
-	}
-	return nil
-}
-
-func (s *PeerOtcService) compensatePeerExercise(ctx context.Context, contract *model.PeerContract, exercise *model.PeerContractExercise) error {
-	switch exercise.CurrentStep {
-	case model.PeerExerciseStepFundsReserved:
-		tx := s.exerciseCashTransaction(contract, exercise.ExecutionKey)
-		s.rollbackTwoBankTransaction(ctx, contract.SellerRoutingNumber, tx.TransactionID, exercise.ExecutionKey)
-	case model.PeerExerciseStepFundsCommitted:
-		refundTx := s.exerciseCashTransaction(contract, exercise.ExecutionKey+"-refund")
-		for i := range refundTx.Postings {
-			refundTx.Postings[i].Amount = -refundTx.Postings[i].Amount
-		}
-		_ = s.coordinateTwoBankTransaction(ctx, contract.SellerRoutingNumber, refundTx, exercise.ExecutionKey+"-refund")
-		if contract.SellerRoutingNumber == s.peers.OurRoutingNumber() {
-			_, _ = s.tradingClient.ReleasePeerOtcShares(ctx, contractStorageKey(contract))
-		} else {
-			_ = s.client.ReleaseShares(ctx, dto.ForeignBankId{RoutingNumber: contract.AuthorityRoutingNumber, ID: contract.ID})
-		}
-	}
-
-	exercise.Status = model.PeerExerciseFailed
-	exercise.UpdatedAt = time.Now()
-	if err := s.exercises.Update(ctx, exercise); err != nil {
-		return errors.InternalErr(err)
-	}
-	return nil
-}
-
-func (s *PeerOtcService) compensateAfterFundsReserved(ctx context.Context, exercise *model.PeerContractExercise, reason string) error {
-	exercise.CurrentStep = model.PeerExerciseStepFundsReserved
-	exercise.Status = model.PeerExerciseCompensating
-	exercise.LastError = reason
-	exercise.UpdatedAt = time.Now()
-	if err := s.exercises.Update(ctx, exercise); err != nil {
-		return errors.InternalErr(err)
-	}
-	return errors.BadRequestErr(reason)
-}
-
-func (s *PeerOtcService) compensateAfterFundsCommitted(ctx context.Context, exercise *model.PeerContractExercise, reason string) error {
-	exercise.CurrentStep = model.PeerExerciseStepFundsCommitted
-	exercise.Status = model.PeerExerciseCompensating
-	exercise.LastError = reason
-	exercise.UpdatedAt = time.Now()
-	if err := s.exercises.Update(ctx, exercise); err != nil {
-		return errors.InternalErr(err)
-	}
-	return errors.BadRequestErr(reason)
-}
-
-func (s *PeerOtcService) failPeerExercise(ctx context.Context, exercise *model.PeerContractExercise, reason string) error {
-	exercise.Status = model.PeerExerciseFailed
-	exercise.LastError = reason
-	exercise.UpdatedAt = time.Now()
-	if err := s.exercises.Update(ctx, exercise); err != nil {
-		return errors.InternalErr(err)
-	}
-	return errors.BadRequestErr(reason)
-}
-
-func (s *PeerOtcService) advancePeerExercise(ctx context.Context, exercise *model.PeerContractExercise, step model.PeerExerciseStep, statusValue model.PeerExerciseStatus, lastError string) error {
-	exercise.CurrentStep = step
-	exercise.Status = statusValue
-	exercise.LastError = lastError
-	exercise.UpdatedAt = time.Now()
-	if err := s.exercises.Update(ctx, exercise); err != nil {
-		return errors.InternalErr(err)
-	}
-	return nil
-}
-
-func (s *PeerOtcService) loadPeerContractForSellerStep(ctx context.Context, senderRouting, authorityRouting int, contractID string) (*model.PeerContract, error) {
-	if authorityRouting != s.peers.OurRoutingNumber() {
-		return nil, errors.BadRequestErr("contract authority routing number does not match this bank")
-	}
-
-	contract, err := s.contracts.FindByID(ctx, authorityRouting, contractID)
-	if err != nil {
-		return nil, errors.InternalErr(err)
-	}
-	if contract == nil {
-		return nil, errors.NotFoundErr("contract not found")
-	}
-	if contract.BuyerRoutingNumber != senderRouting {
-		return nil, errors.ForbiddenErr("only the buyer bank can perform this exercise step")
-	}
-	if contract.SellerRoutingNumber != s.peers.OurRoutingNumber() {
-		return nil, errors.BadRequestErr("seller is not local to this bank")
-	}
-	if contract.Status != model.PeerContractActive {
-		return nil, errors.ConflictErr("contract is not active")
-	}
-
-	return contract, nil
-}
-
-func parsePeerPartyID(id, field string) (uint, error) {
-	value, err := strconv.ParseUint(id, 10, 64)
-	if err != nil || value == 0 {
-		return 0, errors.BadRequestErr(field + " must be a positive integer")
-	}
-	return uint(value), nil
-}
-
-func contractStorageKey(contract *model.PeerContract) string {
-	return fmt.Sprintf("%d:%s", contract.AuthorityRoutingNumber, contract.ID)
-}
