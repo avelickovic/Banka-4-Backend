@@ -40,6 +40,7 @@ func NewServer(
 	watchlistHandler *handler.WatchlistHandler,
 	recurringOrderHandler *handler.RecurringOrderHandler,
 	dividendHandler *handler.DividendHandler,
+	priceAlertHandler *handler.PriceAlertHandler,
 	verifier auth.TokenVerifier,
 	permProvider auth.PermissionProvider,
 	userClient client.UserServiceClient,
@@ -48,7 +49,7 @@ func NewServer(
 
 	InitRouter(r, cfg)
 
-	SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, otcHandler, otcOfferHandler, fundHandler, watchlistHandler, recurringOrderHandler, dividendHandler, verifier, permProvider, userClient)
+	SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, otcHandler, otcOfferHandler, fundHandler, watchlistHandler, recurringOrderHandler, dividendHandler, priceAlertHandler, verifier, permProvider, userClient)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -90,6 +91,7 @@ func SetupRoutes(
 	watchlistHandler *handler.WatchlistHandler,
 	recurringOrderHandler *handler.RecurringOrderHandler,
 	dividendHandler *handler.DividendHandler,
+	priceAlertHandler *handler.PriceAlertHandler,
 	verifier auth.TokenVerifier,
 	permProvider auth.PermissionProvider,
 	userClient client.UserServiceClient,
@@ -160,6 +162,21 @@ func SetupRoutes(
 			watchlists.DELETE("/:watchlistId", watchlistHandler.DeleteWatchlist)
 			watchlists.POST("/:watchlistId/items", watchlistHandler.AddListing)
 			watchlists.DELETE("/:watchlistId/items/:listingId", watchlistHandler.RemoveListing)
+		}
+
+		// Price alerts — personalne threshold notifikacije za listings. Dostupne
+		// svim korisnicima sa Trading permisijom (klijent, aktuar, supervizor).
+		// Vlasništvo se određuje preko (UserID, OwnerType) iz tokena, isto kao
+		// kod watchlists.
+		priceAlerts := api.Group("/price-alerts")
+		priceAlerts.Use(
+			authMw,
+			auth.RequirePermission(permission.Trading),
+		)
+		{
+			priceAlerts.GET("", priceAlertHandler.GetMyPriceAlerts)
+			priceAlerts.POST("", priceAlertHandler.CreatePriceAlert)
+			priceAlerts.DELETE("/:priceAlertId", priceAlertHandler.DeletePriceAlert)
 		}
 
 		funds := api.Group("/investment-funds")

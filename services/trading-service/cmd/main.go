@@ -136,6 +136,10 @@ func main() {
 			service.NewRecurringOrderService,
 			handler.NewRecurringOrderHandler,
 			service.NewRecurringOrderScheduler,
+			service.NewNotificationService,
+			repository.NewPriceAlertRepository,
+			service.NewPriceAlertService,
+			handler.NewPriceAlertHandler,
 			tradinggrpc.NewTradingServiceServer,
 			job.NewOtcOptionExpirationJob,
 		),
@@ -179,6 +183,7 @@ func main() {
 				&model.WatchlistItem{},
 				&model.DividendPayout{},
 				&model.RecurringOrder{},
+				&model.PriceAlert{},
 			)
 		}),
 		fx.Invoke(func(lc fx.Lifecycle, svc *service.StockService) {
@@ -194,6 +199,7 @@ func main() {
 				},
 			})
 		}),
+		fx.Invoke(service.RegisterPriceAlertLifecycle),
 		fx.Invoke(func(db *gorm.DB) error {
 			return seed.SeedFuturesContracts(db)
 		}),
