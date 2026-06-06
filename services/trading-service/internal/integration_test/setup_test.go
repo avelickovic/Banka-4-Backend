@@ -80,6 +80,7 @@ func TestMain(m *testing.M) {
 		&model.TaxCollection{},
 		&model.OtcOffer{},
 		&model.OtcOptionContract{},
+		&model.OtcNegotiationHistory{},
 		&model.OtcShareReservation{},
 		&model.OtcExecutionSaga{},
 		&model.InvestmentFund{},
@@ -189,6 +190,16 @@ func (c *fakeUserClient) GetIdentityByUserId(_ context.Context, _ uint64, _ stri
 
 func (c *fakeUserClient) IncrementUsedLimit(_ context.Context, _ uint64, _ float64) (*pb.IncrementUsedLimitResponse, error) {
 	return nil, nil
+}
+
+type fakeMailer struct{}
+
+func (f *fakeMailer) Send(
+	to string,
+	subject string,
+	body string,
+) error {
+	return nil
 }
 
 type fakeTaxRecorder struct{}
@@ -326,6 +337,7 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 		supervisorIDs: map[uint64]bool{10: true},
 		agentIDs:      map[uint64]bool{20: true},
 	}
+	var mailer service.Mailer = &fakeMailer{}
 	var bankingClient client.BankingClient = &fakeBankingClient{
 		accountByNumber: map[string]uint64{
 			"seller-acc": 20,
@@ -368,8 +380,11 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 	taxSvc := service.NewTaxService(taxRepo, bankingClient, cfg, auditSvc)
 	otcSvc := service.NewOTCService(assetOwnershipRepo, listingRepo, userClient)
 	otcProcessingSvc := service.NewOtcDealProcessingService(otcOfferRepo, otcContractRepo, otcShareReservationRepo, otcExecutionRepo, assetOwnershipRepo, txManager, bankingClient)
+	otcHistoryRepo := repository.NewOtcNegotiationHistoryRepository(db)
+	otcHistoryService := service.NewOtcNegotiationHistoryService(otcOfferRepo, otcHistoryRepo)
+	otcHistoryHandler := handler.NewOtcNegotiationHistoryHandler(otcHistoryService)
 	otcOfferSvc := service.NewOtcOfferService(otcOfferRepo, otcContractRepo, assetOwnershipRepo, stockRepo, bankingClient,
-		userClient, otcProcessingSvc)
+		userClient, mailer, otcProcessingSvc, otcHistoryService)
 
 	healthHandler := handler.NewHealthHandler()
 	exchangeHandler := handler.NewExchangeHandler(exchangeSvc)
@@ -381,7 +396,7 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 	otcOfferHandler := handler.NewOtcOfferHandler(otcOfferSvc)
 	watchlistHandler := handler.NewWatchlistHandler(service.NewWatchlistService(repository.NewWatchlistRepository(db), listingRepo))
 	dividendRepo := repository.NewDividendPayoutRepository(db)
-	dividendSvc := service.NewDividendPayoutService(dividendRepo, assetOwnershipRepo, stockRepo, listingRepo, taxSvc, bankingClient, cfg)
+	dividendSvc := service.NewDividendPayoutService(dividendRepo, assetOwnershipRepo, stockRepo, listingRepo, taxSvc, bankingClient, cfg, fundRepo, positionRepo, orderSvc)
 	dividendHandler := handler.NewDividendHandler(dividendSvc)
 
 	recurringOrderRepo := repository.NewRecurringOrderRepository(db)
@@ -392,7 +407,7 @@ func setupTestRouterWithPermissions(t *testing.T, db *gorm.DB, perms []permissio
 
 	r := gin.New()
 	server.InitRouter(r, cfg)
-	server.SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, otcHandler, otcOfferHandler, fundHandler, watchlistHandler, recurringOrderHandler, dividendHandler, verifier, permProvider, userClient)
+	server.SetupRoutes(r, healthHandler, taxHandler, exchangeHandler, orderHandler, portfolioHandler, listingHandler, otcHandler, otcOfferHandler, fundHandler, watchlistHandler, otcHistoryHandler, recurringOrderHandler, dividendHandler, verifier, permProvider, userClient)
 
 	return r, userClient
 }
