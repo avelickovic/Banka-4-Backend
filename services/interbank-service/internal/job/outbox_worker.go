@@ -295,7 +295,7 @@ func (w *OutboxWorker) sendHTTP(ctx context.Context, peer config.Peer, payload [
 	if err != nil {
 		return 0, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	return resp.StatusCode, body, err
