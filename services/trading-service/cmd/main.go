@@ -9,6 +9,7 @@ import (
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client"
 	clientgrpc "github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/client/grpc"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/config"
+	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/faultinject"
 	tradinggrpc "github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/grpc"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/job"
 	"github.com/RAF-SI-2025/Banka-4-Backend/services/trading-service/internal/model"
@@ -151,6 +152,11 @@ func main() {
 		fx.Invoke(func(cfg *config.Configuration) error {
 			return logging.Init(cfg.Env)
 		}),
+		// The SAGA fault-injection hook (X-Saga-* test headers) must never be
+		// active in a release build.
+		fx.Invoke(func() error {
+			return faultinject.GuardStartup()
+		}),
 		fx.Invoke(func(db *gorm.DB) error {
 			return db.AutoMigrate(&model.Exchange{})
 		}),
@@ -179,6 +185,7 @@ func main() {
 				&model.OtcOptionContract{},
 				&model.OtcShareReservation{},
 				&model.OtcExecutionSaga{},
+				&model.OtcExecutionSagaLogEntry{},
 				&model.PeerOtcShareReservation{},
 				&model.PeerOtcShareCredit{},
 				&model.InvestmentFund{},

@@ -2,6 +2,7 @@ go 1.26
 
 use (
 	common
+	e2e
 	services/banking-service
 	services/email-service
 	services/interbank-service
