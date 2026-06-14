@@ -661,6 +661,51 @@ paths:
       summary: Browse public OTC stocks across all peer banks
       tags:
       - peer-otc
+  /api/peer-otc/user/{rn}/{id}:
+    get:
+      description: |-
+        Resolves {rn, id} into the owning bank's display name and the
+        user's display name. When rn is ours the lookup is local;
+        otherwise §3.7 is called on the owning peer bank.
+      parameters:
+      - description: Owning bank routing number
+        in: path
+        name: rn
+        required: true
+        type: integer
+      - description: User id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserInformation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.AppError'
+        "502":
+          description: Peer unreachable or returned non-2xx
+          schema:
+            $ref: '#/definitions/errors.AppError'
+      security:
+      - BearerAuth: []
+      summary: Resolve a user (local or peer bank) into a display name
+      tags:
+      - peer-otc
   /interbank:
     post:
       consumes:
